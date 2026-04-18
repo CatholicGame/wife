@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1117">
+  <title>Thống kê – BĐS Khảo Sát</title>
+  <link rel="stylesheet" href="css/app.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <style>
+    body { padding-top: var(--nav-height); }
+    .stats-content {
+      padding: var(--space-4);
+      padding-bottom: calc(var(--bottom-nav-height) + var(--space-4));
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .chart-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      margin-bottom: var(--space-4);
+    }
+    .chart-card h3 { margin-bottom: var(--space-4); font-size: 0.9rem; color: var(--text-secondary); }
+    canvas { max-height: 260px; }
+
+    .top-list { display: flex; flex-direction: column; gap: var(--space-2); }
+    .top-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      background: var(--bg-surface);
+      border-radius: var(--radius-md);
+      padding: var(--space-3);
+      cursor: pointer;
+      text-decoration: none;
+      color: inherit;
+      transition: background var(--fast);
+    }
+    .top-item:hover { background: var(--bg-card-hover); }
+    .top-rank { font-size: 1.2rem; width: 28px; text-align: center; flex-shrink: 0; }
+    .top-info { flex: 1; min-width: 0; }
+    .top-address { font-weight: 600; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .top-sub { font-size: 0.72rem; color: var(--text-secondary); }
+    .top-score { font-weight: 800; font-size: 1.1rem; color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<nav class="top-nav">
+  <a href="index.html" class="nav-logo">
+    <span class="logo-icon">🏠</span>
+    <span>BĐS <span class="logo-text">Khảo Sát</span></span>
+  </a>
+  <div class="nav-spacer"></div>
+  <button class="nav-btn" id="btnRefreshStats">🔄</button>
+</nav>
+
+<div class="stats-content">
+  <!-- Loading -->
+  <div id="statsLoading" style="text-align:center;padding:var(--space-8)">
+    <div class="loading-spinner"></div>
+    <p class="text-muted" style="margin-top:var(--space-4)">Đang tải dữ liệu…</p>
+  </div>
+
+  <div id="statsMain" class="hidden">
+    <!-- Overview cards -->
+    <div class="stat-grid mb-4" id="overviewGrid"></div>
+
+    <!-- Charts grid -->
+    <div id="chartsContainer"></div>
+
+    <!-- Top BĐS -->
+    <div class="chart-card">
+      <h3>🏆 Top 5 BĐS điểm cao nhất</h3>
+      <div class="top-list" id="topList"></div>
+    </div>
+  </div>
+</div>
+
+<nav class="bottom-nav">
+  <a href="index.html" class="bottom-nav-item">
+    <span class="nav-icon">🏠</span><span>Danh sách</span>
+  </a>
+  <a href="map.html" class="bottom-nav-item">
+    <span class="nav-icon">🗺️</span><span>Bản đồ</span>
+  </a>
+  <a href="stats.html" class="bottom-nav-item active">
+    <span class="nav-icon">📊</span><span>Thống kê</span>
+  </a>
+  <a href="index.html#account" class="bottom-nav-item">
+    <span class="nav-icon">👤</span><span>Tài khoản</span>
+  </a>
+</nav>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/sheets.js"></script>
+<script src="js/stats.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+</body>
+</html>

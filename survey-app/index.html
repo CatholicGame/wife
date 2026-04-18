@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="description" content="Quản lý danh sách bất động sản khảo sát – đọc/ghi trực tiếp từ Google Sheets">
+  <title>BĐS Khảo Sát</title>
+  <link rel="stylesheet" href="css/app.css">
+  <style>
+    body { padding-top: var(--nav-height); }
+
+    /* ─ Header search bar ─ */
+    .search-section {
+      position: sticky;
+      top: var(--nav-height);
+      background: rgba(13,17,23,0.95);
+      backdrop-filter: blur(12px);
+      padding: var(--space-3) var(--space-4);
+      z-index: 80;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .sort-select {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-full);
+      padding: 4px 10px;
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .list-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-3) var(--space-4) 0;
+    }
+
+    .list-count {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    #propertiesList {
+      padding: var(--space-3) var(--space-4);
+      padding-bottom: calc(var(--bottom-nav-height) + 80px);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    /* property card compact list */
+    .prop-card {
+      display: flex;
+      gap: 0;
+      cursor: pointer;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .prop-thumb {
+      width: 110px;
+      flex-shrink: 0;
+      background: var(--bg-surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .prop-thumb img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      position: absolute; inset: 0;
+    }
+
+    .photo-count-badge {
+      position: absolute;
+      bottom: 4px; right: 4px;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      font-size: 0.65rem;
+      padding: 1px 5px;
+      border-radius: var(--radius-full);
+    }
+
+    .prop-body {
+      flex: 1;
+      padding: var(--space-3);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .prop-type-date {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .prop-address {
+      font-weight: 700;
+      font-size: 0.88rem;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+
+    .prop-district {
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+    }
+
+    .prop-price-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: auto;
+    }
+
+    .prop-price {
+      font-size: 1rem;
+      font-weight: 800;
+      color: var(--accent);
+    }
+
+    .prop-area {
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+    }
+
+    .prop-owner {
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Sheet connect banner */
+    .connect-banner {
+      margin: var(--space-4);
+      border-radius: var(--radius-xl);
+      background: radial-gradient(ellipse at top, rgba(0,212,170,0.12), transparent 70%), var(--bg-card);
+      border: 1px solid rgba(0,212,170,0.2);
+      padding: var(--space-6);
+      text-align: center;
+    }
+
+    .connect-banner .banner-icon { font-size: 3rem; margin-bottom: var(--space-3); }
+    .connect-banner h2 { font-size: 1.1rem; margin-bottom: var(--space-2); }
+    .connect-banner p { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: var(--space-5); }
+
+    /* Sheet info bar */
+    .sheet-info-bar {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      padding: var(--space-2) var(--space-4);
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+    }
+    .sheet-info-bar .sheet-name { color: var(--accent); font-weight: 600; }
+
+    /* ── View toggle ── */
+    .view-toggle {
+      display: flex; gap: 2px;
+      background: var(--bg-surface); border-radius: var(--radius-full);
+      padding: 2px; border: 1px solid var(--border);
+    }
+    .view-toggle button {
+      background: none; border: none; color: var(--text-secondary);
+      padding: 4px 10px; border-radius: var(--radius-full);
+      font-size: 0.78rem; cursor: pointer; transition: all 0.2s;
+    }
+    .view-toggle button.active {
+      background: var(--accent); color: #000; font-weight: 600;
+    }
+
+    /* ── Table View ── */
+    .table-wrapper {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 0 var(--space-3);
+      padding-bottom: calc(var(--bottom-nav-height) + 80px);
+    }
+    .data-table {
+      width: 100%; min-width: 900px;
+      border-collapse: separate; border-spacing: 0;
+      font-size: 0.78rem;
+    }
+    .data-table thead {
+      position: sticky; top: 0; z-index: 10;
+    }
+    .data-table th {
+      background: var(--bg-surface);
+      color: var(--text-secondary);
+      font-weight: 600; font-size: 0.72rem;
+      text-transform: uppercase; letter-spacing: 0.02em;
+      padding: 8px 10px;
+      border-bottom: 2px solid var(--border);
+      white-space: nowrap; text-align: left;
+      position: sticky; top: 0;
+    }
+    .data-table th:first-child { border-radius: var(--radius-md) 0 0 0; }
+    .data-table th:last-child { border-radius: 0 var(--radius-md) 0 0; }
+    .data-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-primary);
+      vertical-align: top;
+      max-width: 220px;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .data-table tbody tr {
+      transition: background 0.15s;
+      cursor: pointer;
+    }
+    .data-table tbody tr:hover {
+      background: rgba(0,212,170,0.06);
+    }
+    .data-table .col-stt { width: 36px; text-align: center; color: var(--text-muted); }
+    .data-table .col-addr { min-width: 140px; font-weight: 600; }
+    .data-table .col-price { color: var(--accent); font-weight: 700; white-space: nowrap; }
+    .data-table .col-score { text-align: center; }
+  </style>
+</head>
+<body>
+
+<!-- ── Top Navigation ── -->
+<nav class="top-nav">
+  <a href="index.html" class="nav-logo">
+    <span class="logo-icon">🏠</span>
+    <span>BĐS <span class="logo-text">Khảo Sát</span></span>
+  </a>
+  <div class="nav-spacer"></div>
+
+  <button class="nav-btn" id="btnRefresh" title="Đồng bộ dữ liệu">
+    <span id="refreshIcon">🔄</span>
+  </button>
+
+  <button class="nav-btn" id="btnUser" title="Tài khoản">
+    <img class="nav-avatar hidden" id="userAvatar" src="" alt="">
+    <span id="userNameShort"></span>
+  </button>
+</nav>
+
+<!-- ── Sheet Info Bar ── -->
+<div class="sheet-info-bar hidden" id="sheetInfoBar">
+  <span>📊</span>
+  <span class="sheet-name" id="sheetNameLabel">—</span>
+  <span>•</span>
+  <span id="sheetRowCount">—</span> bất động sản
+  <div style="flex:1"></div>
+  <button class="btn btn-ghost btn-sm" id="btnSetupCols" title="Gán cột dữ liệu" style="font-size:0.72rem">⚙️ Cột</button>
+  <button class="btn btn-ghost btn-sm" id="btnChangeSheet" style="font-size:0.72rem">Đổi Sheet</button>
+</div>
+
+<!-- ── Login Screen ── -->
+<div id="loginScreen" class="login-screen" style="display:none">
+  <div class="login-card">
+    <div class="login-logo">🏘️</div>
+    <h1 class="login-title">BĐS Khảo Sát</h1>
+    <p class="login-subtitle">Quản lý, tìm kiếm và phân tích bất động sản đã khảo sát — dữ liệu đồng bộ với Google Sheets của bạn.</p>
+    <button class="google-signin-btn" id="btnSignIn">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
+      Đăng nhập với Google
+    </button>
+    <p class="text-muted text-small" style="margin-top:var(--space-4)">Yêu cầu quyền đọc/ghi Google Sheets và Drive</p>
+  </div>
+</div>
+
+<!-- ── Connect Sheet Banner ── -->
+<div id="connectBanner" class="hidden">
+  <div class="connect-banner">
+    <div class="banner-icon">📋</div>
+    <h2>Chọn Google Sheet của bạn</h2>
+    <p>Kết nối với file Google Sheets chứa danh sách bất động sản khảo sát để bắt đầu.</p>
+    <button class="btn btn-primary btn-lg" id="btnPickSheet">
+      📂 Chọn Google Sheet
+    </button>
+    <p class="text-muted text-small" style="margin-top:var(--space-4)">Hoặc <a href="#" id="btnNewSheet">tạo sheet mới</a></p>
+  </div>
+</div>
+
+<!-- ── Main Content ── -->
+<main id="mainContent" class="hidden">
+  <!-- Search & Filter -->
+  <div class="search-section">
+    <div class="search-bar">
+      <span class="search-icon">🔍</span>
+      <input type="search" id="searchInput" placeholder="Tìm địa chỉ, quận, đầu chủ…" autocomplete="off">
+      <button class="btn btn-ghost btn-sm" id="btnFilter" style="padding:2px 6px">⚙️</button>
+    </div>
+    <div class="filter-row" id="filterRow">
+      <button class="filter-chip active" data-filter="all">Tất cả</button>
+      <button class="filter-chip" data-filter="Nhà tầng">Nhà tầng</button>
+      <button class="filter-chip" data-filter="Đất">Đất</button>
+      <button class="filter-chip" data-filter="Căn hộ">Căn hộ</button>
+      <button class="filter-chip" data-filter="Biệt thự">Biệt thự</button>
+      <button class="filter-chip" data-status="Tiềm năng">⭐ Tiềm năng</button>
+      <button class="filter-chip" data-status="Đã chốt">✅ Đã chốt</button>
+    </div>
+  </div>
+
+  <!-- List Header -->
+  <div class="list-header">
+    <span class="list-count" id="listCount">Đang tải…</span>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="view-toggle" id="viewToggle">
+        <button data-view="card" title="Dạng thẻ">🃏</button>
+        <button data-view="table" class="active" title="Dạng bảng">📋</button>
+        <button data-view="refactor" title="Bảng (V2)">✨ V2</button>
+      </div>
+      <select class="sort-select" id="sortSelect">
+        <option value="date-desc">🕐 Mới nhất</option>
+        <option value="score-desc">⭐ Điểm cao</option>
+        <option value="price-asc">💰 Giá tăng</option>
+        <option value="price-desc">💰 Giá giảm</option>
+        <option value="area-desc">📐 Diện tích</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Card List -->
+  <div id="propertiesList" class="hidden"></div>
+
+  <!-- Table View -->
+  <div class="table-wrapper" id="tableView"></div>
+  
+  <!-- Refactor View (Static Demo Table for New DB Schema) -->
+  <div class="table-wrapper hidden" id="refactorView">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <!-- Nhóm 1: Hệ thống & Định danh -->
+          <th style="background:var(--bg-surface);color:var(--text-secondary)">STT</th>
+          <th style="background:var(--bg-surface)">Ngày khảo sát</th>
+          <th style="background:var(--bg-surface)">Tình trạng</th>
+          <th style="background:var(--bg-surface)">Loại BĐS</th>
+          <!-- Nhóm 2: Vị trí (Maps Auto-fill) -->
+          <th style="background:rgba(0,212,170,0.1)">Link Map</th>
+          <th style="background:rgba(0,212,170,0.1)">Địa chỉ</th>
+          <th style="background:rgba(0,212,170,0.1)">Quận/Huyện</th>
+          <!-- Nhóm 3: Thông số cốt lõi (Specs) -->
+          <th style="background:rgba(245,166,35,0.1)">Giá (Tỷ)</th>
+          <th style="background:rgba(245,166,35,0.1)">DT (m²)</th>
+          <th style="background:rgba(245,166,35,0.1)">Mặt tiền (m)</th>
+          <th style="background:rgba(245,166,35,0.1)">Đường (m)</th>
+          <th style="background:rgba(245,166,35,0.1)">Số tầng</th>
+          <th style="background:rgba(245,166,35,0.1)">PN</th>
+          <th style="background:rgba(245,166,35,0.1)">Hướng</th>
+          <th style="background:rgba(245,166,35,0.1)">Pháp lý</th>
+          <!-- Nhóm 4: Đánh giá & Phân tích -->
+          <th style="background:rgba(180,100,255,0.1)">Ưu điểm</th>
+          <th style="background:rgba(180,100,255,0.1)">Nhược điểm</th>
+          <th style="background:rgba(180,100,255,0.1)">Nhận xét chung</th>
+          <th style="background:rgba(180,100,255,0.1)">Tổng điểm</th>
+          <!-- Nhóm 5: Nguồn & Liên hệ -->
+          <th style="background:rgba(231,76,60,0.1)">Đầu chủ</th>
+          <th style="background:rgba(231,76,60,0.1)">SĐT</th>
+          <th style="background:rgba(231,76,60,0.1)">Đã đăng tin</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Sample Row -->
+        <tr>
+          <td class="col-stt">1</td>
+          <td>18/04/2026</td>
+          <td><span class="badge" style="background:rgba(0,212,170,0.2);color:var(--green)">✅ Đã chốt</span></td>
+          <td><span class="badge badge-accent">Nhà tầng</span></td>
+          
+          <td><a href="#" style="color:var(--accent);text-decoration:none">🗺️ short-link</a></td>
+          <td class="col-addr">691 Bát Khối</td>
+          <td>Long Biên</td>
+          
+          <td class="col-price">15.2</td>
+          <td>95</td>
+          <td>7.6</td>
+          <td>5</td>
+          <td>2</td>
+          <td>1</td>
+          <td>Đông Nam</td>
+          <td>Sổ đỏ</td>
+          
+          <td>Nhà mặt phố, lô góc ngay đường...</td>
+          <td>Cột điện góc nhà - Quy hoạch...</td>
+          <td>(Trống)</td>
+          <td class="col-score"><span class="score-badge score-high" style="font-size:0.75rem;padding:2px 8px">4.2</span></td>
+          
+          <td>anh Minh</td>
+          <td>0982259***</td>
+          <td>(Trống)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<!-- ── FAB ── -->
+<button class="fab hidden" id="fabAdd" title="Thêm BĐS mới">+</button>
+
+<!-- ── Bottom Navigation ── -->
+<nav class="bottom-nav" id="bottomNav">
+  <a href="index.html" class="bottom-nav-item active">
+    <span class="nav-icon">🏠</span>
+    <span>Danh sách</span>
+  </a>
+  <a href="map.html" class="bottom-nav-item">
+    <span class="nav-icon">🗺️</span>
+    <span>Bản đồ</span>
+  </a>
+  <a href="stats.html" class="bottom-nav-item">
+    <span class="nav-icon">📊</span>
+    <span>Thống kê</span>
+  </a>
+  <a href="#" class="bottom-nav-item" id="navAccount">
+    <span class="nav-icon">👤</span>
+    <span>Tài khoản</span>
+  </a>
+</nav>
+
+<!-- ── Toast Container ── -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ── Account Modal ── -->
+<div class="modal-backdrop hidden" id="accountModal">
+  <div class="modal-sheet" style="max-width:400px">
+    <div class="modal-handle"></div>
+    <div style="text-align:center;margin-bottom:var(--space-5)">
+      <img id="modalAvatar" src="" alt="" style="width:64px;height:64px;border-radius:50%;border:3px solid var(--accent);margin:0 auto var(--space-3)">
+      <div id="modalUserName" class="font-bold"></div>
+      <div id="modalUserEmail" class="text-muted text-small"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:var(--space-3)">
+      <button class="btn btn-secondary btn-full" id="btnModalPickSheet">📂 Đổi Google Sheet</button>
+      <button class="btn btn-danger btn-full" id="btnSignOut">🚪 Đăng xuất</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Scripts ── -->
+<script>
+// Force reload nếu JS cũ đang chạy
+const _CV = '2350';
+if (localStorage.getItem('_cv') !== _CV) {
+  localStorage.setItem('_cv', _CV);
+  // Xóa cache cũ và reload
+  if ('caches' in window) caches.keys().then(k => k.forEach(n => caches.delete(n)));
+  window.location.reload(true);
+}
+</script>
+<script src="js/config.js?v=2330"></script>
+<script src="js/auth.js?v=2330"></script>
+<script src="js/sheets.js?v=2330"></script>
+<script src="js/drive.js?v=2330"></script>
+<script src="js/col-mapper.js?v=2330"></script>
+<script src="js/list.js?v=2350"></script>
+
+<!-- Google Identity Services -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- Google Picker -->
+<script src="https://apis.google.com/js/api.js" async defer></script>
+
+</body>
+</html>

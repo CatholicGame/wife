@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1117">
+  <title>Chi tiết BĐS – BĐS Khảo Sát</title>
+  <link rel="stylesheet" href="css/app.css">
+  <style>
+    body { padding-top: 0; }
+
+    .detail-hero {
+      position: relative;
+      height: 280px;
+      background: var(--bg-surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 5rem;
+      overflow: hidden;
+    }
+
+    .detail-hero .hero-img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      position: absolute; inset: 0;
+    }
+
+    .hero-overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(to bottom, transparent 40%, rgba(13,17,23,0.9) 100%);
+    }
+
+    .hero-actions {
+      position: absolute;
+      top: var(--space-4);
+      left: 0; right: 0;
+      display: flex;
+      align-items: center;
+      padding: 0 var(--space-4);
+      gap: var(--space-2);
+    }
+
+    .hero-action-btn {
+      background: rgba(13,17,23,0.65);
+      backdrop-filter: blur(6px);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      font-size: 1rem;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: background var(--fast);
+    }
+    .hero-action-btn:hover { background: rgba(0,0,0,0.7); }
+
+    .hero-price {
+      position: absolute;
+      bottom: var(--space-4);
+      left: var(--space-4);
+      right: var(--space-4);
+    }
+
+    .detail-content {
+      padding: var(--space-4);
+      padding-bottom: 100px;
+      max-width: 768px;
+      margin: 0 auto;
+    }
+
+    .detail-title-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-3);
+      margin-bottom: var(--space-4);
+    }
+
+    .detail-address {
+      font-size: 1.15rem;
+      font-weight: 700;
+      flex: 1;
+    }
+
+    .detail-price-big {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+
+    /* Info grid */
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-3);
+      margin-bottom: var(--space-4);
+    }
+
+    @media (min-width: 480px) {
+      .info-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+
+    .info-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: var(--space-3);
+      text-align: center;
+    }
+    .info-item .info-label { font-size: 0.65rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
+    .info-item .info-value { font-weight: 700; font-size: 0.9rem; margin-top: 2px; }
+
+    /* Action buttons */
+    .action-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-2);
+      margin-bottom: var(--space-4);
+    }
+
+    @media (min-width: 480px) {
+      .action-buttons { grid-template-columns: repeat(4, 1fr); }
+    }
+
+    /* Ratings display */
+    .rating-bar-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      margin-bottom: var(--space-2);
+    }
+    .rating-bar-label { font-size: 0.8rem; width: 70px; flex-shrink: 0; }
+    .rating-bar-track {
+      flex: 1;
+      height: 6px;
+      background: var(--border);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+    }
+    .rating-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: var(--radius-full);
+      transition: width 0.5s var(--ease);
+    }
+    .rating-bar-val { font-size: 0.8rem; font-weight: 700; width: 28px; text-align: right; flex-shrink: 0; }
+
+    /* Gallery */
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-2);
+    }
+
+    .gallery-photo {
+      aspect-ratio: 1;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      cursor: pointer;
+      background: var(--bg-surface);
+      position: relative;
+    }
+    .gallery-photo img { width: 100%; height: 100%; object-fit: cover; transition: transform var(--fast); }
+    .gallery-photo:hover img { transform: scale(1.06); }
+    .gallery-photo .photo-del-btn {
+      position: absolute;
+      top: 4px; right: 4px;
+      background: rgba(248,81,73,0.8);
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 22px; height: 22px;
+      font-size: 0.7rem;
+      cursor: pointer;
+      display: none;
+      align-items: center; justify-content: center;
+    }
+    .gallery-photo:hover .photo-del-btn { display: flex; }
+
+    .camera-add-btn {
+      aspect-ratio: 1;
+      border-radius: var(--radius-md);
+      border: 2px dashed rgba(0,212,170,0.4);
+      background: var(--accent-bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-1);
+      color: var(--accent);
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all var(--fast);
+    }
+    .camera-add-btn:hover { background: rgba(0,212,170,0.15); }
+    .camera-add-btn .icon { font-size: 1.6rem; }
+
+    /* Section */
+    .detail-section {
+      margin-bottom: var(--space-4);
+    }
+    .detail-section-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-secondary);
+      margin-bottom: var(--space-3);
+      display: flex; align-items: center; gap: var(--space-2);
+    }
+
+    .text-block {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: var(--space-3) var(--space-4);
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+    }
+
+    /* Fixed bottom bar */
+    .bottom-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: rgba(22,27,34,0.97);
+      backdrop-filter: blur(12px);
+      border-top: 1px solid var(--border);
+      padding: var(--space-3) var(--space-4);
+      padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom));
+      display: flex;
+      gap: var(--space-2);
+    }
+
+    /* Lightbox */
+    .lightbox {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.95);
+      z-index: 400;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .lightbox-close {
+      position: absolute;
+      top: var(--space-4); right: var(--space-4);
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      border: none;
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      font-size: 1.2rem;
+      cursor: pointer;
+    }
+
+    /* Mini map */
+    #miniMap { height: 200px; border-radius: var(--radius-md); overflow: hidden; }
+  </style>
+  <!-- Leaflet for mini map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+
+<!-- ── Hero ── -->
+<div class="detail-hero" id="detailHero">
+  <div class="hero-emoji" id="heroEmoji">🏠</div>
+  <img class="hero-img hidden" id="heroImg" src="" alt="">
+  <div class="hero-overlay"></div>
+
+  <div class="hero-actions">
+    <button class="hero-action-btn" onclick="history.back()">←</button>
+    <div style="flex:1"></div>
+    <button class="hero-action-btn" id="btnShare" title="Chia sẻ">📤</button>
+    <button class="hero-action-btn" id="btnEdit" title="Sửa">✏️</button>
+    <button class="hero-action-btn" id="btnDelete" title="Xóa" style="color:var(--red)">🗑️</button>
+  </div>
+
+  <div class="hero-price" id="heroPriceBadge"></div>
+</div>
+
+<!-- ── Content ── -->
+<div class="detail-content" id="detailContent" style="display:none">
+  <div class="detail-title-row">
+    <div>
+      <div class="detail-address" id="detailAddress">—</div>
+      <div style="font-size:0.8rem;color:var(--text-secondary);" id="detailDistrict"></div>
+    </div>
+    <div class="text-right">
+      <div class="detail-price-big" id="detailPrice">—</div>
+      <div class="score-badge" id="detailScoreBadge" style="margin-top:4px;margin-left:auto"></div>
+    </div>
+  </div>
+
+  <!-- Info grid -->
+  <div class="info-grid" id="infoGrid"></div>
+
+  <!-- Action buttons -->
+  <div class="action-buttons" id="actionButtons"></div>
+
+  <!-- Photos -->
+  <div class="detail-section">
+    <div class="detail-section-title">📷 Ảnh</div>
+    <div class="gallery-grid" id="galleryGrid">
+      <div class="camera-add-btn" id="btnAddPhoto">
+        <span class="icon">📷</span>
+        <span>Chụp / Thêm ảnh</span>
+      </div>
+    </div>
+    <div id="photoLoading" style="display:none" class="text-muted text-small" style="margin-top:var(--space-2)">Đang tải ảnh…</div>
+  </div>
+
+  <!-- Map -->
+  <div class="detail-section" id="mapSection" style="display:none">
+    <div class="detail-section-title">🗺️ Vị trí trên bản đồ</div>
+    <div id="miniMap"></div>
+  </div>
+
+  <!-- Ratings -->
+  <div class="detail-section" id="ratingsSection" style="display:none">
+    <div class="detail-section-title">⭐ Đánh giá</div>
+    <div id="ratingBars"></div>
+  </div>
+
+  <!-- Notes -->
+  <div class="detail-section" id="notesSection" style="display:none">
+    <div class="detail-section-title">📝 Ghi chú</div>
+    <div id="notesContent"></div>
+  </div>
+
+  <!-- All fields -->
+  <div class="detail-section">
+    <div class="detail-section-title">📋 Toàn bộ dữ liệu</div>
+    <div id="allFieldsGrid" class="info-grid" style="grid-template-columns:1fr 1fr"></div>
+  </div>
+</div>
+
+<!-- ── Loading ── -->
+<div id="loadingState" style="padding:var(--space-8);text-align:center">
+  <div class="loading-spinner"></div>
+  <p class="text-muted" style="margin-top:var(--space-4)">Đang tải dữ liệu…</p>
+</div>
+
+<!-- ── Bottom Bar ── -->
+<div class="bottom-bar">
+  <a href="#" id="btnCallOwner" class="btn btn-secondary flex-1">📞 Gọi đầu chủ</a>
+  <a href="#" id="btnOpenMaps" class="btn btn-secondary flex-1" target="_blank">🗺️ Google Maps</a>
+  <a href="form.html" id="btnEditBottom" class="btn btn-primary flex-1">✏️ Sửa</a>
+</div>
+
+<!-- ── Toast ── -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ── Lightbox ── -->
+<div class="lightbox hidden" id="lightbox">
+  <button class="lightbox-close" onclick="document.getElementById('lightbox').classList.add('hidden')">✕</button>
+  <img id="lightboxImg" src="" alt="">
+</div>
+
+<!-- Scripts -->
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/sheets.js"></script>
+<script src="js/drive.js"></script>
+<script src="js/col-mapper.js"></script>
+<script src="js/detail.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://apis.google.com/js/api.js" async defer></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</body>
+</html>

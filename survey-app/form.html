@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1117">
+  <title>Thêm BĐS – BĐS Khảo Sát</title>
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    body { padding-top: var(--nav-height); }
+
+    .form-page {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: var(--space-4);
+      padding-bottom: 120px;
+    }
+
+    .form-page-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: var(--space-5);
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .form-stack {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+
+    .calc-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--accent-bg);
+      color: var(--accent);
+      font-size: 0.78rem;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+    }
+
+    .rating-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-2) 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .rating-item:last-child { border-bottom: none; }
+
+    .rating-name {
+      flex: 1;
+      font-size: 0.85rem;
+    }
+
+    .rating-stars {
+      display: flex;
+      gap: 2px;
+    }
+
+    .star-btn {
+      font-size: 1.3rem;
+      line-height: 1;
+      cursor: pointer;
+      transition: transform var(--fast);
+      color: var(--text-muted);
+    }
+    .star-btn.active { color: #f5a623; }
+    .star-btn:active { transform: scale(1.3); }
+
+    .score-display {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--accent);
+      text-align: center;
+      padding: var(--space-4);
+    }
+
+    .bottom-actions {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: rgba(13,17,23,0.95);
+      backdrop-filter: blur(12px);
+      border-top: 1px solid var(--border);
+      padding: var(--space-3) var(--space-4);
+      padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom));
+      display: flex;
+      gap: var(--space-3);
+    }
+
+    /* Dynamic fields from Sheet headers */
+    .dynamic-fields {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+
+    .field-unknown {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .gps-row {
+      display: flex;
+      gap: var(--space-2);
+    }
+    .gps-row input { flex: 1; }
+
+    .phone-row {
+      display: flex;
+      gap: var(--space-2);
+    }
+    .phone-row input { flex: 1; }
+    .call-btn {
+      background: rgba(63,185,80,0.1);
+      color: var(--green);
+      border: 1px solid rgba(63,185,80,0.2);
+      border-radius: var(--radius-md);
+      padding: 0 var(--space-3);
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+    }
+
+    #formProgress {
+      height: 3px;
+      background: var(--border);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      margin-bottom: var(--space-4);
+    }
+    #formProgressBar {
+      height: 100%;
+      background: var(--accent);
+      border-radius: var(--radius-full);
+      transition: width var(--normal);
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Top Navigation ── -->
+<nav class="top-nav">
+  <a href="javascript:history.back()" class="nav-btn" style="font-size:1.1rem">←</a>
+  <span id="formPageTitle" style="font-weight:700;font-size:1rem">Thêm BĐS</span>
+  <div class="nav-spacer"></div>
+  <button class="nav-btn text-muted" id="btnClearForm">Xóa</button>
+</nav>
+
+<div class="form-page">
+  <div id="formProgress"><div id="formProgressBar" style="width:0%"></div></div>
+
+  <form id="propertyForm" class="form-stack" novalidate>
+
+    <!-- Hidden Data Fields -->
+    <input type="hidden" id="field_DRIVE_FOLDER">
+    <input type="hidden" id="field_PHOTO_COUNT" value="0">
+
+    <!-- ── Section: Vị trí ─────────────────────────── -->
+    <div class="form-section">
+      <div class="form-section-title">📍 Vị trí & Bản đồ</div>
+
+      <!-- GPS -->
+      <div class="form-group">
+        <label class="form-label">Tọa độ GPS (Bấm 📍 để tự động điền địa chỉ)</label>
+        <div class="gps-row">
+          <input type="number" class="form-control" id="field_LAT" placeholder="Lat (vĩ độ)" step="any">
+          <input type="number" class="form-control" id="field_LNG" placeholder="Lng (kinh độ)" step="any">
+          <button type="button" class="btn btn-primary" id="btnGetGPS" title="Lấy vị trí hiện tại" style="flex-shrink:0">📍 Lấy vị trí</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Link Google Maps (Hoặc dán link tọa độ)</label>
+        <input type="url" class="form-control" id="field_MAPS_LINK" placeholder="https://maps.google.com/…?q=lat,lng">
+      </div>
+
+      <!-- Mini map preview -->
+      <div id="mapPreview" style="display:none;border-radius:12px;overflow:hidden;height:220px;margin-bottom:var(--space-4);border:1px solid var(--border)">
+        <div id="miniMap" style="width:100%;height:100%"></div>
+      </div>
+      <div id="mapLinkFallback" style="display:none;margin-bottom:var(--space-4)">
+        <a id="mapOpenLink" href="#" target="_blank" class="btn btn-secondary" style="width:100%;text-align:center">🗺️ Mở Google Maps</a>
+      </div>
+
+      <div class="form-group" id="field_address_wrap">
+        <label class="form-label">Địa chỉ (Có thể tự động điền)</label>
+        <input type="text" class="form-control" id="field_ADDRESS" placeholder="Số, đường, phường/xã…" required>
+      </div>
+
+      <div class="form-row form-row-2">
+        <div class="form-group" id="field_district_wrap">
+          <label class="form-label">Quận/Huyện</label>
+          <input type="text" class="form-control" id="field_DISTRICT" list="districtList" placeholder="Quận, Huyện…">
+          <datalist id="districtList">
+            <option>Quận 1</option><option>Quận 2</option><option>Quận 3</option>
+            <option>Quận 4</option><option>Quận 5</option><option>Quận 6</option>
+            <option>Quận 7</option><option>Quận 8</option><option>Quận 9</option>
+            <option>Quận 10</option><option>Quận 11</option><option>Quận 12</option>
+            <option>Thủ Đức</option><option>Bình Thạnh</option><option>Tân Bình</option>
+            <option>Tân Phú</option><option>Phú Nhuận</option><option>Gò Vấp</option>
+            <option>Bình Tân</option><option>Hóc Môn</option><option>Bình Chánh</option>
+            <option>Nhà Bè</option><option>Cần Giờ</option><option>Củ Chi</option>
+          </datalist>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Loại BĐS <span class="required">*</span></label>
+          <select class="form-control" id="field_TYPE" required>
+            <option value="">Chọn loại…</option>
+            <option>Nhà tầng</option><option>Đất</option><option>Căn hộ</option>
+            <option>Biệt thự</option><option>Nhà cấp 4</option><option>Shophouse</option><option>Khác</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Section: Thông số ───────────────────────── -->
+    <div class="form-section">
+      <div class="form-section-title">📐 Thông số</div>
+      <div class="form-row form-row-2">
+        <div class="form-group">
+          <label class="form-label">Diện tích sổ (m²)</label>
+          <input type="number" class="form-control" id="field_AREA" placeholder="0.0" step="0.1" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Diện tích thực tế (m²)</label>
+          <input type="number" class="form-control" id="field_AREA_REAL" placeholder="0.0" step="0.1" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mặt tiền (m)</label>
+          <input type="number" class="form-control" id="field_FRONT" placeholder="0.0" step="0.1" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Đường trước (m)</label>
+          <input type="number" class="form-control" id="field_ROAD" placeholder="0.0" step="0.1" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Số tầng</label>
+          <input type="number" class="form-control" id="field_FLOORS" placeholder="1" min="1" step="1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Số phòng ngủ</label>
+          <input type="number" class="form-control" id="field_BEDROOMS" placeholder="0" min="0" step="1">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Hướng nhà</label>
+        <select class="form-control" id="field_DIR">
+          <option value="">Chọn hướng…</option>
+          <option>Đông</option><option>Tây</option><option>Nam</option><option>Bắc</option>
+          <option>Đông Nam</option><option>Đông Bắc</option><option>Tây Nam</option><option>Tây Bắc</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- ── Section: Giá & Pháp lý ────────────────── -->
+    <div class="form-section">
+      <div class="form-section-title">💰 Giá & Pháp lý</div>
+      <div class="form-row form-row-2">
+        <div class="form-group">
+          <label class="form-label">Giá chào bán (tỷ)</label>
+          <input type="number" class="form-control" id="field_PRICE" placeholder="0.0" step="0.001" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Giá/m² <span class="calc-badge">⚡ tự tính</span></label>
+          <input type="text" class="form-control" id="field_PRICE_M2" placeholder="—" readonly style="color:var(--accent);font-weight:600">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Pháp lý</label>
+        <select class="form-control" id="field_LEGAL">
+          <option value="">Chọn…</option>
+          <option>Sổ hồng riêng</option>
+          <option>Sổ hồng chung</option>
+          <option>Đang làm sổ</option>
+          <option>Hợp đồng mua bán</option>
+          <option>Chưa có sổ</option>
+          <option>Sổ đỏ</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Thông tin sổ</label>
+        <textarea class="form-control" id="field_TITLE_INFO" rows="2" placeholder="Mã sổ, mục đích sử dụng, quy hoạch…"></textarea>
+      </div>
+    </div>
+
+    <!-- ── Section: Hình ảnh & Tài liệu ──────────────── -->
+    <div class="form-section">
+      <div class="form-section-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>📸 Hình ảnh & Tài liệu</span>
+        <span id="photoCountBadge" class="badge" style="background:var(--bg-surface);color:var(--text-secondary);font-size:0.7rem;font-weight:400">0 ảnh</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label" style="font-size:0.75rem;color:var(--text-secondary);font-weight:400">Được lưu trên Google Drive ☁️</label>
+        
+        <!-- Nút tải ảnh -->
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input type="file" id="filePhotos" accept="image/*" multiple style="display:none">
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('filePhotos').click()" style="flex:1">
+            <span style="font-size:1.1rem;margin-right:4px">🖼️</span> Chọn/Chụp ảnh
+          </button>
+        </div>
+
+        <!-- Khung Gallery -->
+        <div id="photoGallery" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;min-height:40px">
+          <div style="grid-column:1/-1;text-align:center;color:var(--text-muted);font-size:0.8rem;padding:var(--space-2) 0">
+            Chưa có hình ảnh nào
+          </div>
+        </div>
+
+        <!-- Tiến trình upload -->
+        <div id="uploadProgressContainer" class="hidden" style="margin-top:12px">
+          <div style="display:flex;justify-content:space-between;font-size:0.75rem;margin-bottom:4px">
+            <span id="uploadStatusText">Đang xử lý...</span>
+            <span id="uploadPercent">0%</span>
+          </div>
+          <div style="width:100%;height:6px;background:var(--bg-surface);border-radius:3px;overflow:hidden">
+            <div id="uploadProgressBar" style="height:100%;width:0%;background:var(--accent);transition:width 0.2s"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Section: Đầu chủ ───────────────────────── -->
+    <div class="form-section">
+      <div class="form-section-title">👤 Đầu chủ</div>
+      <div class="form-group">
+        <label class="form-label">Tên đầu chủ</label>
+        <input type="text" class="form-control" id="field_OWNER" placeholder="Họ tên…">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Số điện thoại</label>
+        <div class="phone-row">
+          <input type="tel" class="form-control" id="field_PHONE" placeholder="0909…">
+          <a href="#" id="callBtn" class="call-btn" title="Gọi điện">📞</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Section: Ngày & Tình trạng ─────────────── -->
+    <div class="form-section">
+      <div class="form-section-title">📅 Thông tin khảo sát</div>
+      <div class="form-row form-row-2">
+        <div class="form-group">
+          <label class="form-label">Ngày &amp; Giờ khảo sát</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="datetime-local" class="form-control" id="field_DATE" style="flex:1">
+            <button type="button" id="btnNow" class="btn btn-secondary" title="Lấy thời gian hiện tại" style="flex-shrink:0;white-space:nowrap">🕐 Bây giờ</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tình trạng</label>
+          <select class="form-control" id="field_STATUS">
+            <option value="">Chọn…</option>
+            <option>Đã khảo sát</option>
+            <option>Đang xem xét</option>
+            <option>Tiềm năng</option>
+            <option>Đã chốt</option>
+            <option>Bỏ qua</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Section: Đánh giá ──────────────────────── -->
+    <div class="form-section">
+      <div class="form-section-title">⭐ Đánh giá</div>
+      <div id="ratingsContainer">
+        <!-- Rendered by JS -->
+      </div>
+      <div class="score-display" id="totalScoreDisplay" style="display:none">
+        Tổng điểm: <span id="totalScoreValue">—</span>
+      </div>
+    </div>
+
+    <!-- ── Section: Ghi chú ───────────────────────── -->
+    <div class="form-section">
+      <div class="form-section-title">📝 Ghi chú</div>
+      <div class="form-group">
+        <label class="form-label">Ưu điểm</label>
+        <textarea class="form-control" id="field_PROS" rows="2" placeholder="Những điểm tốt…"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nhược điểm</label>
+        <textarea class="form-control" id="field_CONS" rows="2" placeholder="Những điểm hạn chế…"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Ghi chú thêm</label>
+        <textarea class="form-control" id="field_NOTES" rows="3" placeholder="Thông tin bổ sung…"></textarea>
+      </div>
+    </div>
+
+    <!-- ── Dynamic fields (tự động từ headers Sheet) ─ -->
+    <div class="form-section hidden" id="dynamicSection">
+      <div class="form-section-title">📋 Thông tin khác (từ Sheet)</div>
+      <div id="dynamicFields" class="dynamic-fields"></div>
+    </div>
+
+  </form>
+</div>
+
+<!-- ── Bottom Actions ── -->
+<div class="bottom-actions">
+  <button type="button" class="btn btn-secondary flex-1" id="btnCancel">Hủy</button>
+  <button type="submit" form="propertyForm" class="btn btn-primary flex-1" id="btnSave">
+    <span id="btnSaveText">💾 Lưu BĐS</span>
+  </button>
+</div>
+
+<!-- ── Toast ── -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="js/config.js?v=2330"></script>
+<script src="js/auth.js?v=2330"></script>
+<script src="js/sheets.js?v=2330"></script>
+<script src="js/drive.js?v=2355"></script>
+<script src="js/col-mapper.js?v=2330"></script>
+<script src="js/form.js?v=2355"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://apis.google.com/js/api.js" async defer></script>
+</body>
+</html>

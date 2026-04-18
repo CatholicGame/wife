@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1117">
+  <title>Bản đồ – BĐS Khảo Sát</title>
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    body { padding-top: var(--nav-height); overflow: hidden; }
+
+    #map {
+      height: calc(100vh - var(--nav-height) - var(--bottom-nav-height));
+      width: 100%;
+    }
+
+    .map-filter-bar {
+      position: fixed;
+      top: calc(var(--nav-height) + var(--space-3));
+      left: 50%; transform: translateX(-50%);
+      z-index: 500;
+      background: rgba(22,27,34,0.92);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-full);
+      padding: var(--space-2) var(--space-4);
+      display: flex;
+      gap: var(--space-2);
+      max-width: calc(100vw - 2 * var(--space-4));
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .map-filter-bar::-webkit-scrollbar { display: none; }
+
+    .map-legend {
+      position: fixed;
+      bottom: calc(var(--bottom-nav-height) + var(--space-3));
+      left: var(--space-3);
+      z-index: 500;
+      background: rgba(22,27,34,0.92);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: var(--space-3);
+      font-size: 0.75rem;
+    }
+    .legend-item { display: flex; align-items: center; gap: var(--space-2); margin-bottom: 4px; }
+    .legend-dot { width: 12px; height: 12px; border-radius: 50%; }
+
+    .map-count {
+      position: fixed;
+      top: calc(var(--nav-height) + var(--space-3));
+      right: var(--space-3);
+      z-index: 500;
+      background: rgba(22,27,34,0.9);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: var(--space-2) var(--space-3);
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+    }
+
+    /* Custom marker */
+    .custom-marker {
+      background: none;
+      border: none;
+    }
+    .marker-pin {
+      width: 36px; height: 36px;
+      border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.4);
+    }
+    .marker-pin .marker-score {
+      transform: rotate(45deg);
+      font-size: 0.7rem;
+      font-weight: 800;
+      color: #0d1117;
+    }
+
+    /* Popup */
+    .popup-content { min-width: 200px; }
+    .popup-address { font-weight: 700; font-size: 0.88rem; margin-bottom: 4px; }
+    .popup-price { color: var(--accent); font-weight: 700; font-size: 0.9rem; }
+    .popup-foot { display: flex; gap: 6px; margin-top: 8px; }
+    .popup-btn {
+      flex: 1; text-align: center;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      color: var(--text-primary);
+      text-decoration: none;
+    }
+    .popup-btn:hover { background: var(--accent); color: #0d1117; }
+  </style>
+</head>
+<body>
+
+<nav class="top-nav">
+  <a href="index.html" class="nav-logo">
+    <span class="logo-icon">🏠</span>
+    <span>BĐS <span class="logo-text">Khảo Sát</span></span>
+  </a>
+  <div class="nav-spacer"></div>
+  <span class="text-muted text-small">Bản đồ</span>
+</nav>
+
+<!-- Filter bar -->
+<div class="map-filter-bar" id="mapFilterBar">
+  <button class="filter-chip active" data-filter="all">Tất cả</button>
+  <button class="filter-chip" data-filter="Nhà tầng">Nhà tầng</button>
+  <button class="filter-chip" data-filter="Đất">Đất</button>
+  <button class="filter-chip" data-filter="Căn hộ">Căn hộ</button>
+  <button class="filter-chip" data-filter="Biệt thự">Biệt thự</button>
+</div>
+
+<div class="map-count" id="mapCount">— BĐS</div>
+
+<!-- Map -->
+<div id="map"></div>
+
+<!-- Legend -->
+<div class="map-legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--score-high)"></div> ≥ 7 điểm</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--score-med)"></div> 5-7 điểm</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--score-low)"></div> &lt; 5 điểm</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#8b949e"></div> Chưa đánh giá</div>
+</div>
+
+<!-- Bottom Nav -->
+<nav class="bottom-nav">
+  <a href="index.html" class="bottom-nav-item">
+    <span class="nav-icon">🏠</span><span>Danh sách</span>
+  </a>
+  <a href="map.html" class="bottom-nav-item active">
+    <span class="nav-icon">🗺️</span><span>Bản đồ</span>
+  </a>
+  <a href="stats.html" class="bottom-nav-item">
+    <span class="nav-icon">📊</span><span>Thống kê</span>
+  </a>
+  <a href="index.html#account" class="bottom-nav-item">
+    <span class="nav-icon">👤</span><span>Tài khoản</span>
+  </a>
+</nav>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/sheets.js"></script>
+<script src="js/drive.js"></script>
+<script src="js/map.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</body>
+</html>
