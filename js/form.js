@@ -24,11 +24,48 @@ function nowLocalIso() {
 
 // ─── Rating definitions ────────────────────────────────────────────────────────
 const RATINGS = [
-  { key: 'RATING_LOCATION', label: 'Vị trí', weight: 0.30, fieldHints: ['vị trí', 'vi tri', 'location'] },
-  { key: 'RATING_PRICE',    label: 'Giá cả',  weight: 0.25, fieldHints: ['giá', 'gia', 'price'] },
-  { key: 'RATING_LEGAL',    label: 'Pháp lý', weight: 0.20, fieldHints: ['pháp lý', 'phap ly', 'legal'] },
-  { key: 'RATING_SPEC',     label: 'Thông số', weight: 0.15, fieldHints: ['thông số', 'thong so', 'spec'] },
-  { key: 'RATING_INTERIOR', label: 'Nội thất', weight: 0.10, fieldHints: ['nội thất', 'noi that', 'interior'] },
+  { key: 'R_LOC', label: 'I. Vị trí', fieldHints: ['vị trí', 'location'], desc: [
+    "Vị trí xấu, hẻm cụt, phong thủy kém",
+    "Ngõ sâu, khó tìm",
+    "Ngõ xe máy, cách ô tô <100m",
+    "Ô tô vào nhà / ngõ rộng >3m",
+    "Mặt phố / ô tô tránh / kinh doanh tốt"
+  ]},
+  { key: 'R_SPEC', label: 'II. Thông số', fieldHints: ['thông số', 'spec'], desc: [
+    "Rất khó dùng",
+    "Méo, nhỏ, khó bố trí",
+    "Bình thường",
+    "Diện tích ổn, không lỗi lớn",
+    "Diện tích đẹp, mặt tiền rộng (>4m), vuông vắn"
+  ]},
+  { key: 'R_RARE', label: 'III. Độ hiếm', fieldHints: ['độ hiếm', 'độ hot', 'rare'], desc: [
+    "Tràn lan",
+    "Nhiều lựa chọn",
+    "Có vài căn tương tự",
+    "Ít hàng cùng phân khúc",
+    "Gần như không có hàng so sánh"
+  ]},
+  { key: 'R_PRICE', label: 'IV. Giá cả', fieldHints: ['giá cả', 'đánh giá giá', 'price'], desc: [
+    "Giá ngáo",
+    "Hơi cao",
+    "Giá ngang thị trường",
+    "Giá hợp lý, dễ bán",
+    "Rẻ hơn thị trường rõ rệt (deal tốt)"
+  ]},
+  { key: 'R_INT', label: 'V. Nội thất', fieldHints: ['nội thất', 'interior'], desc: [
+    "Nhà thô / xuống cấp",
+    "Cần sửa",
+    "Trung bình",
+    "Khá ổn",
+    "Full đẹp, vào ở ngay"
+  ]},
+  { key: 'R_CASH', label: 'VI. Dòng tiền', fieldHints: ['dòng tiền', 'cashflow'], desc: [
+    "Không có dòng tiền",
+    "Khó khai thác",
+    "Bình thường",
+    "Có thể cho thuê ổn",
+    "Cho thuê ngon / kinh doanh tốt"
+  ]}
 ];
 
 const ratingValues = {};
@@ -63,14 +100,16 @@ function initRatings() {
   if (!container) return;
 
   container.innerHTML = RATINGS.map((r) => `
-    <div class="rating-item">
-      <span class="rating-name">${r.label} <span class="text-xs text-muted">${(r.weight * 100).toFixed(0)}%</span></span>
-      <div class="rating-stars" data-key="${r.key}">
-        ${[1,2,3,4,5,6,7,8,9,10].map((n) =>
-          `<button type="button" class="star-btn" data-value="${n}" title="${n}">★</button>`
-        ).join('')}
+    <div class="rating-item" style="flex-direction:column; align-items:flex-start; gap:4px">
+      <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+          <span class="rating-name" style="font-weight:600">${r.label}</span>
+          <div class="rating-stars" data-key="${r.key}">
+            ${[1,2,3,4,5].map((n) =>
+              `<button type="button" class="star-btn" data-value="${n}" title="${r.desc[n-1]}">★</button>`
+            ).join('')}
+          </div>
       </div>
-      <span class="rating-value" id="rv_${r.key}">0</span>
+      <div class="rating-desc text-muted" id="desc_${r.key}" style="font-size:0.75rem; font-style:italic; min-height:16px;">Chưa đánh giá</div>
     </div>
   `).join('');
 
@@ -79,10 +118,20 @@ function initRatings() {
       const btn = e.target.closest('.star-btn');
       if (!btn) return;
       const key = stars.dataset.key;
-      const val = parseInt(btn.dataset.value);
+      let val = parseInt(btn.dataset.value);
+      
+      // Cho phép bấm lại sao đang chọn để hủy (remove star)
+      if (ratingValues[key] === val) val = 0;
+      
       ratingValues[key] = val;
       updateStars(stars, val);
-      document.getElementById(`rv_${key}`).textContent = val;
+      
+      const rDef = RATINGS.find(r => r.key === key);
+      const descEl = document.getElementById(`desc_${key}`);
+      if (descEl && rDef) {
+          descEl.textContent = val > 0 ? `${val}⭐ - ${rDef.desc[val-1]}` : 'Chưa đánh giá';
+          descEl.style.color = val > 0 ? 'var(--accent)' : 'var(--text-muted)';
+      }
       updateTotalScore();
     });
   });
@@ -100,7 +149,7 @@ function updateTotalScore() {
   RATINGS.forEach((r) => {
     const v = ratingValues[r.key] || 0;
     if (v > 0) hasAny = true;
-    total += v * r.weight;
+    total += v;
   });
 
   const display = document.getElementById('totalScoreDisplay');
@@ -109,9 +158,8 @@ function updateTotalScore() {
 
   if (hasAny) {
     display.style.display = 'block';
-    valueEl.textContent = total.toFixed(1) + ' / 10';
-    const cls = total >= 7 ? 'score-high' : total >= 5 ? 'score-med' : 'score-low';
-    valueEl.style.color = total >= 7 ? 'var(--score-high)' : total >= 5 ? 'var(--score-med)' : 'var(--score-low)';
+    valueEl.textContent = total + ' / 30';
+    valueEl.style.color = total >= 20 ? 'var(--score-high)' : total >= 12 ? 'var(--score-med)' : 'var(--score-low)';
   } else {
     display.style.display = 'none';
   }
@@ -145,7 +193,7 @@ function formatVND(n) {
 }
 
 // ─── GPS & Reverse Geocoding ───────────────────────────────────────────────────
-async function reverseGeocodeToForm(lat, lng) {
+async function reverseGeocodeToForm(lat, lng, forceOverwrite = false) {
   try {
     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, {
       headers: { 'Accept-Language': 'vi' }
@@ -169,15 +217,19 @@ async function reverseGeocodeToForm(lat, lng) {
       const addrEl = document.getElementById('field_ADDRESS');
       const distEl = document.getElementById('field_DISTRICT');
       
-      // Tự động điền nếu ô đang trống hoặc user đồng ý ghi đè
-      if (addrEl && (!addrEl.value || addrEl.value.trim() === '')) {
-        addrEl.value = fullAddress;
+      if (addrEl) {
+         if (!addrEl.value || addrEl.value.trim() === '' || forceOverwrite) {
+            addrEl.value = fullAddress;
+            addrEl.dispatchEvent(new Event('input'));
+         }
       }
       
-      if (distEl && (!distEl.value || distEl.value.trim() === '')) {
-        // Chuẩn hóa tên "Quận " "Huyện" nếu API OSM trả thiếu hoặc thừa
-        let dName = district.replace(/^(Quận|Huyện|Thành phố)\s+/i, '').trim();
-        distEl.value = dName;
+      if (distEl) {
+         if (!distEl.value || distEl.value.trim() === '' || forceOverwrite) {
+            let dName = district.replace(/^(Quận|Huyện|Thành phố)\s+/i, '').trim();
+            distEl.value = dName;
+            distEl.dispatchEvent(new Event('input'));
+         }
       }
     }
   } catch (err) {
@@ -195,12 +247,18 @@ function setupGPS() {
         const lng = pos.coords.longitude.toFixed(6);
         const latEl = document.getElementById('field_LAT');
         const lngEl = document.getElementById('field_LNG');
-        if (latEl) latEl.value = lat;
-        if (lngEl) lngEl.value = lng;
+        if (latEl) { latEl.value = lat; latEl.dispatchEvent(new Event('input')); }
+        if (lngEl) { lngEl.value = lng; lngEl.dispatchEvent(new Event('input')); }
         
         showToast('Đã lấy tọa độ ✓ Đang phân tích địa chỉ...', 'info');
         updateMapsLink(lat, lng);
-        await reverseGeocodeToForm(lat, lng);
+        
+        const addrEl = document.getElementById('field_ADDRESS');
+        let overwrite = false;
+        if (addrEl && addrEl.value && addrEl.value.trim() !== '') {
+            overwrite = await showConfirm('Cập nhật địa chỉ?', 'Địa chỉ đang có dữ liệu. Kéo địa chỉ mới nhất từ GPS để ghi đè?');
+        }
+        await reverseGeocodeToForm(lat, lng, overwrite);
         showToast('Khởi tạo vị trí hoàn tất ✓', 'success');
       },
       (err) => showToast('Lỗi GPS: ' + err.message, 'error'),
@@ -209,11 +267,35 @@ function setupGPS() {
   });
 
   ['field_LAT', 'field_LNG'].forEach((id) => {
-    document.getElementById(id)?.addEventListener('change', () => {
+    document.getElementById(id)?.addEventListener('input', () => {
       const lat = document.getElementById('field_LAT')?.value;
       const lng = document.getElementById('field_LNG')?.value;
       if (lat && lng) updateMapsLink(lat, lng);
     });
+  });
+  
+  // Xử lý dán link tọa độ MAPS_LINK
+  document.getElementById('field_MAPS_LINK')?.addEventListener('input', (e) => {
+    const val = e.target.value.trim();
+    if (!val) return;
+    
+    // regex bóc tọa độ từ URL dạng /@lat,lng hoặc q=lat,lng
+    const match = val.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || val.match(/[q=|\/place\/](-?\d+\.\d+),(-?\d+\.\d+)/);
+    if (match) {
+        const lat = match[1];
+        const lng = match[2];
+        const latEl = document.getElementById('field_LAT');
+        const lngEl = document.getElementById('field_LNG');
+        if (latEl) { latEl.value = lat; latEl.dispatchEvent(new Event('input')); }
+        if (lngEl) { lngEl.value = lng; lngEl.dispatchEvent(new Event('input')); }
+        showMapPreview(lat, lng);
+        showToast('Đã trích xuất tọa độ từ Link bản đồ ✓', 'success');
+        
+        const addrEl = document.getElementById('field_ADDRESS');
+        if (!addrEl || !addrEl.value || addrEl.value.trim() === '') {
+            reverseGeocodeToForm(lat, lng, true);
+        }
+    }
   });
 }
 
@@ -253,8 +335,11 @@ function setupPhotos() {
   // Pick photos button → open file input
   btnPick?.addEventListener('click', () => fileInput.click());
 
+  const btnDeleteFolder = document.getElementById('btnDeleteFolder');
+
   // When folder changes → load gallery from that folder
   folderSelect?.addEventListener('change', async () => {
+    if (btnDeleteFolder) btnDeleteFolder.style.display = folderSelect.value ? 'inline-block' : 'none';
     const folderId = folderSelect.value;
     if (!folderId) return;
     FormState.driveFolderId = folderId;
@@ -264,6 +349,31 @@ function setupPhotos() {
     // Reset category → load gallery from parent folder
     if (categorySelect) categorySelect.value = '';
     await loadGallery(folderId);
+  });
+  
+  btnDeleteFolder?.addEventListener('click', async () => {
+    const id = folderSelect.value;
+    if(!id) return;
+    const fName = folderSelect.options[folderSelect.selectedIndex].text.replace('📁 ', '');
+    try {
+       showToast('Đang kiểm tra thư mục...', 'info');
+       const photos = await DriveAPI.listPhotos(id);
+       const confirmMsg = `Bạn sắp xóa folder "${fName}" và toàn bộ ${photos.length} tấm ảnh bên trong. Hành động này không thể hoàn tác!`;
+       if (!await showConfirm('Xác nhận xóa thư mục?', confirmMsg, true)) return;
+       
+       showToast('Đang xóa...', 'info', 1000);
+       await DriveAPI.deleteFile(id);
+       showToast('Đã xóa thư mục', 'success');
+       
+       if (FormState.driveFolderId === id) {
+           FormState.driveFolderId = '';
+           const idInput = document.getElementById('field_DRIVE_FOLDER');
+           if (idInput) idInput.value = '';
+       }
+       await loadFolderList();
+    } catch(err) {
+       showToast('Lỗi xóa thư mục: ' + err.message, 'error');
+    }
   });
 
   // When category changes → find/create subfolder and load gallery
@@ -287,8 +397,8 @@ function setupPhotos() {
 
   // Create new folder
   btnNewFolder?.addEventListener('click', async () => {
-    const name = prompt('Tên folder mới:');
-    if (!name || !name.trim()) return;
+    const name = await showPrompt('Tạo Folder Mới', 'Nhập tên folder…');
+    if (!name) return;
 
     try {
       showToast('Đang tạo folder…', 'info', 2000);
@@ -314,9 +424,9 @@ function setupPhotos() {
   });
 
   // Create new category
-  btnNewCategory?.addEventListener('click', () => {
-    const name = prompt('Tên nhóm giá mới (VD: 5-7 tỉ):');
-    if (!name || !name.trim()) return;
+  btnNewCategory?.addEventListener('click', async () => {
+    const name = await showPrompt('Thêm Nhóm Giá', 'VD: 5-7 tỷ…');
+    if (!name) return;
 
     const cats = getCategories();
     if (cats.includes(name.trim())) {
@@ -368,8 +478,17 @@ function setupPhotos() {
         FormState.driveFolderId = uploadFolderId;
       }
 
-      await uploadPhotos(files, uploadFolderId);
-      await loadGallery(uploadFolderId);
+      const newUrls = await uploadPhotos(files, uploadFolderId);
+      
+      let csvField = document.querySelector('[data-header="Ảnh"]') || document.getElementById('field_PHOTOS');
+      let currentUrls = [];
+      if (csvField && csvField.value) {
+         currentUrls = csvField.value.split(',').map(s => s.trim()).filter(s => s);
+      }
+      const combined = currentUrls.concat(newUrls).join(',');
+      if (csvField) csvField.value = combined;
+      
+      await loadGallery(uploadFolderId, combined);
 
       // Reset file input
       fileInput.value = '';
@@ -414,8 +533,38 @@ async function loadFolderList() {
 
     // Auto-select if form has a saved folder ID
     if (FormState.driveFolderId) {
-      sel.value = FormState.driveFolderId;
+      try {
+        const folderInfo = await DriveAPI.getFile(FormState.driveFolderId);
+        if (folderInfo && folderInfo.parents && folderInfo.parents.length > 0) {
+           if (folderInfo.parents[0] === rootId) {
+              // It's a top-level folder directly in our root
+              sel.value = FormState.driveFolderId;
+           } else {
+              // It's a subfolder -> Parent is top-level folder
+              sel.value = folderInfo.parents[0];
+              // Subfolder name is the category
+              const catSel = document.getElementById('categorySelect');
+              if (catSel) {
+                 const exists = Array.from(catSel.options).some(o => o.value === folderInfo.name);
+                 if (!exists) {
+                     const opt = document.createElement('option');
+                     opt.value = folderInfo.name;
+                     opt.textContent = '🏷️ ' + folderInfo.name;
+                     catSel.appendChild(opt);
+                 }
+                 catSel.value = folderInfo.name;
+              }
+           }
+        } else {
+          sel.value = FormState.driveFolderId; // fallback
+        }
+      } catch (e) {
+        console.error('Lỗi nhận diện cha/con:', e);
+        sel.value = FormState.driveFolderId; // fallback
+      }
     }
+    const btnDel = document.getElementById('btnDeleteFolder');
+    if (btnDel) btnDel.style.display = sel.value ? 'inline-block' : 'none';
   } catch (err) {
     console.error('Load folders error:', err);
   }
@@ -430,13 +579,14 @@ async function uploadPhotos(files, folderId) {
   if (progressContainer) progressContainer.classList.remove('hidden');
 
   let successCount = 0;
+  const uploadedUrls = [];
   for (let i = 0; i < files.length; i++) {
     try {
-      if (statusText) statusText.textContent = `Đang nén ảnh ${i + 1}/${files.length}`;
-      const compressed = await DriveAPI.compressImage(files[i], 1920, 0.8);
-
       if (statusText) statusText.textContent = `Đang tải ảnh ${i + 1}/${files.length}`;
-      await DriveAPI.uploadPhoto(folderId, compressed, files[i].name);
+      const uploadedFile = await DriveAPI.uploadPhoto(folderId, files[i], files[i].name);
+      if (uploadedFile && uploadedFile.id) {
+        uploadedUrls.push(`https://drive.google.com/uc?id=${uploadedFile.id}&export=view`);
+      }
       
       successCount++;
       const p = Math.round(((i + 1) / files.length) * 100);
@@ -459,18 +609,60 @@ async function uploadPhotos(files, folderId) {
   if (progressContainer) {
     setTimeout(() => { progressContainer.classList.add('hidden'); }, 1000);
   }
+  return uploadedUrls;
 }
 
-async function loadGallery(folderId) {
+async function loadGallery(folderId, photosCsv = null) {
   const gallery = document.getElementById('photoGallery');
   const countBadge = document.getElementById('photoCountBadge');
   if (!gallery) return;
 
-  gallery.innerHTML = '<div style="grid-column:1/-1;text-align:center;font-size:0.8rem;color:var(--text-muted)">Đang tải danh sách ảnh...</div>';
+  // Render instantly from CSV if available (bypassing Google Drive list)
+  if (photosCsv) {
+    const links = photosCsv.split(',').filter(url => url.trim() !== '');
+    // Extract ID from full URL, fallback to raw string if it's already an ID
+    const items = links.map(link => {
+       const m = link.match(/[?&]id=([a-zA-Z0-9_-]+)/) || link.match(/\/d\/([a-zA-Z0-9_-]+)/);
+       return m ? m[1] : link.trim();
+    });
+
+    if (countBadge) countBadge.textContent = `${items.length} ảnh`;
+    const countInput = document.getElementById('field_PHOTO_COUNT');
+    if (countInput) countInput.value = items.length;
+
+    if (items.length === 0) {
+      gallery.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text-muted);font-size:0.8rem;padding:var(--space-2) 0">Chưa có hình ảnh nào</div>';
+      return;
+    }
+
+    window.lightboxImages = items.map(id => `https://drive.google.com/thumbnail?id=${id}&sz=w2500`);
+
+    gallery.innerHTML = items.map((id, index) => `
+      <div class="gallery-photo-item" id="photo-${id}" style="position:relative;padding-top:100%;border-radius:var(--radius-md);overflow:hidden;background:#f0f0f0;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.1)">
+        <a href="#" onclick="window.openLightbox(${index}, event)">
+          <img src="https://drive.google.com/thumbnail?id=${id}&sz=w400" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover" alt="Hình ảnh">
+        </a>
+        <button type="button" class="photo-del-btn" onclick="deletePhotoFromGallery('${id}', event)" title="Xóa ảnh" style="position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,0.6);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s">✕</button>
+      </div>
+    `).join('');
+    
+    // Also update field_PHOTOS hidden input 
+    const fieldPhotos = document.querySelector('[data-header="Ảnh"]') || document.getElementById('field_PHOTOS');
+    if (fieldPhotos) fieldPhotos.value = photosCsv;
+    return;
+  }
+
+  // Fallback: list from Drive API
+  gallery.innerHTML = '<div style="grid-column:1/-1;text-align:center;font-size:0.8rem;color:var(--text-muted)">Đang tải danh sách ảnh từ Drive...</div>';
   
   try {
     const photos = await DriveAPI.listPhotos(folderId);
     
+    // Convert to CSV holding URL and update form field
+    const csv = photos.map(p => `https://drive.google.com/uc?id=${p.id}&export=view`).join(',');
+    const fieldPhotos = document.querySelector('[data-header="Ảnh"]') || document.getElementById('field_PHOTOS');
+    if (fieldPhotos) fieldPhotos.value = csv;
+
     if (countBadge) countBadge.textContent = `${photos.length} ảnh`;
     const countInput = document.getElementById('field_PHOTO_COUNT');
     if (countInput) countInput.value = photos.length;
@@ -480,11 +672,14 @@ async function loadGallery(folderId) {
       return;
     }
 
-    gallery.innerHTML = photos.map(p => `
-      <div style="position:relative;padding-top:100%;border-radius:var(--radius-md);overflow:hidden;background:#f0f0f0">
-        <a href="${p.webViewLink}" target="_blank">
+    window.lightboxImages = photos.map(p => `https://drive.google.com/thumbnail?id=${p.id}&sz=w2500`);
+
+    gallery.innerHTML = photos.map((p, index) => `
+      <div class="gallery-photo-item" id="photo-${p.id}" style="position:relative;padding-top:100%;border-radius:var(--radius-md);overflow:hidden;background:#f0f0f0;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.1)">
+        <a href="#" onclick="window.openLightbox(${index}, event)">
           <img src="${p.thumbnailLink}" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover" alt="${p.name}">
         </a>
+        <button type="button" class="photo-del-btn" onclick="deletePhotoFromGallery('${p.id}', event)" title="Xóa ảnh" style="position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,0.6);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s">✕</button>
       </div>
     `).join('');
   } catch (err) {
@@ -492,6 +687,121 @@ async function loadGallery(folderId) {
     gallery.innerHTML = '<div style="grid-column:1/-1;color:var(--red);font-size:0.8rem">Không thể tải ảnh</div>';
   }
 }
+
+// Global function to handle image deletion
+window.deletePhotoFromGallery = async function(photoId, event) {
+  event.preventDefault();
+  event.stopPropagation();
+  
+  if (!await showConfirm('Xóa ảnh này?', 'Nó sẽ bị xóa vĩnh viễn khỏi Google Drive và BĐS này.', true)) return;
+  
+  try {
+    showToast('Đang xóa ảnh...', 'info', 1000);
+    await DriveAPI.deleteFile(photoId);
+    
+    // Remove from UI
+    const el = document.getElementById('photo-' + photoId);
+    if (el) el.remove();
+    
+    // Remove from CSV
+    let csvField = document.querySelector('[data-header="Ảnh"]') || document.getElementById('field_PHOTOS');
+    if (csvField) {
+      let urls = csvField.value.split(',').filter(u => u.trim() !== '');
+      urls = urls.filter(url => !url.includes(photoId));
+      csvField.value = urls.join(',');
+      
+      // Update counts
+      const countInput = document.getElementById('field_PHOTO_COUNT');
+      if (countInput) countInput.value = urls.length;
+      const countBadge = document.getElementById('photoCountBadge');
+      if (countBadge) countBadge.textContent = `${urls.length} ảnh`;
+    }
+    
+    showToast('Đã xóa ảnh, hãy lưu form để cập nhật.', 'success');
+  } catch (err) {
+    showToast('Lỗi xóa ảnh: ' + err.message, 'error');
+  }
+}
+
+// Global function to open full-screen lightbox
+window.lightboxImages = [];
+window.lightboxIndex = 0;
+
+window.updateLightboxView = function() {
+  const img = document.getElementById('lightboxImg');
+  const cnt = document.getElementById('lightboxCounter');
+  const prev = document.getElementById('lightboxPrev');
+  const next = document.getElementById('lightboxNext');
+  
+  if (img && window.lightboxImages && window.lightboxImages[window.lightboxIndex]) {
+    img.style.opacity = '0';
+    setTimeout(() => {
+        img.src = window.lightboxImages[window.lightboxIndex];
+        img.onload = () => { img.style.opacity = '1'; };
+    }, 100);
+  }
+  if (cnt) {
+    cnt.textContent = window.lightboxImages.length > 1 ? `${window.lightboxIndex + 1} / ${window.lightboxImages.length}` : '';
+  }
+  if (prev) prev.style.display = window.lightboxIndex > 0 ? 'flex' : 'none';
+  if (next) next.style.display = window.lightboxIndex < window.lightboxImages.length - 1 ? 'flex' : 'none';
+};
+
+window.openLightbox = function(index, event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  if (!window.lightboxImages || window.lightboxImages.length === 0) return;
+  window.lightboxIndex = index;
+  window.updateLightboxView();
+  const lb = document.getElementById('imageLightbox');
+  if (lb) lb.style.display = 'flex';
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    const lightbox = document.getElementById('imageLightbox');
+    const closeBtn = document.getElementById('lightboxClose');
+    const img = document.getElementById('lightboxImg');
+    const prev = document.getElementById('lightboxPrev');
+    const next = document.getElementById('lightboxNext');
+
+    if (lightbox) {
+        // Đóng khi click nút X
+        closeBtn?.addEventListener('click', () => {
+            lightbox.style.display = 'none';
+            if (img) img.src = '';
+        });
+
+        // Đóng khi click ngoài hình ảnh
+        lightbox.addEventListener('click', (e) => {
+            if (e.target.id === 'imageLightbox') {
+                lightbox.style.display = 'none';
+                if (img) img.src = '';
+            }
+        });
+        
+        // Điều hướng slide
+        prev?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (window.lightboxIndex > 0) window.openLightbox(window.lightboxIndex - 1);
+        });
+        next?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (window.lightboxIndex < window.lightboxImages.length - 1) window.openLightbox(window.lightboxIndex + 1);
+        });
+        
+        // Bàn phím điều hướng
+        document.addEventListener('keydown', (e) => {
+            if (lightbox.style.display === 'flex') {
+                if (e.key === 'Escape') closeBtn?.click();
+                if (e.key === 'ArrowLeft' && window.lightboxIndex > 0) window.openLightbox(window.lightboxIndex - 1);
+                if (e.key === 'ArrowRight' && window.lightboxIndex < window.lightboxImages.length - 1) window.openLightbox(window.lightboxIndex + 1);
+            }
+        });
+    }
+});
+
 
 function updateMapsLink(lat, lng) {
   const link = document.getElementById('mapsLink');
@@ -578,7 +888,14 @@ function setupCallBtn() {
 // ─── Dynamic fields (cột trong Sheet chưa map được) ───────────────────────────
 function renderDynamicFields(headers, colMap) {
   const mappedIndices = new Set(Object.values(colMap).map((c) => c.index));
-  const unmapped = headers.filter((_, i) => !mappedIndices.has(i));
+  
+  // Lọc ngầm màng các header thuộc tiêu chí Đánh giá để không sinh ra ô text thừa
+  const isRatingCol = (h) => {
+    const s = (h || '').toLowerCase().trim();
+    return RATINGS.some(r => r.fieldHints.some(hint => s.includes(hint)));
+  };
+  
+  const unmapped = headers.filter((h, i) => !mappedIndices.has(i) && !isRatingCol(h));
 
   if (unmapped.length === 0) return;
 
@@ -619,9 +936,34 @@ function buildRowValues(headers, colMap) {
   set('LAT', document.getElementById('field_LAT')?.value || '');
   set('LNG', document.getElementById('field_LNG')?.value || '');
 
-  // Ratings attempts (try to find matching cols)
-  const ratingTotal = RATINGS.reduce((sum, r) => sum + (ratingValues[r.key] || 0) * r.weight, 0);
-  set('SCORE', ratingTotal > 0 ? ratingTotal.toFixed(2) : '');
+  // Save Ratings (Total Score and individual rating mapped column)
+  const scoreTotal = RATINGS.reduce((sum, r) => sum + (ratingValues[r.key] || 0), 0);
+  const ratedCount = RATINGS.filter(r => ratingValues[r.key] > 0).length;
+  set('SCORE', ratedCount > 0 ? scoreTotal.toString() : '');
+  
+  RATINGS.forEach((r) => {
+    const val = ratingValues[r.key];
+    if (val > 0) {
+      // Find matching dynamic header for each individual rating
+      const normalized = (s) => (s || '').toLowerCase().trim();
+      const matchedHeader = headers.find((h) => r.fieldHints.some((hint) => normalized(h).includes(hint)));
+      if (matchedHeader) {
+        const idx = headers.indexOf(matchedHeader);
+        if (idx >= 0 && !values[idx]) values[idx] = val.toString();
+      }
+    }
+  });
+  
+  // Custom Fields (Drive mapping & photo counts)
+  set('DRIVE_FOLDER', FormState.driveFolderId || '');
+  
+  const fieldPhotos = document.getElementById('field_PHOTOS');
+  if (fieldPhotos && fieldPhotos.value) {
+     const cnt = fieldPhotos.value.split(',').filter(s => s.trim() && s !== 'undefined' && s !== 'null').length;
+     set('PHOTO_COUNT', cnt.toString());
+  } else {
+     set('PHOTO_COUNT', '0');
+  }
 
   // Dynamic fields
   document.querySelectorAll('[data-header]').forEach((input) => {
@@ -685,9 +1027,58 @@ function prefillForm(rowData, headers, colMap) {
   setVal('field_DRIVE_FOLDER', get('DRIVE_FOLDER'));
   setVal('field_PHOTO_COUNT', get('PHOTO_COUNT') || '0');
   
-  if (get('DRIVE_FOLDER')) {
+  // Custom hidden field for PHOTOS
+  let fieldPhotos = document.getElementById('field_PHOTOS');
+  if (!fieldPhotos) {
+    fieldPhotos = document.createElement('input');
+    fieldPhotos.type = 'hidden';
+    fieldPhotos.id = 'field_PHOTOS';
+    // Đảm bảo [data-header="Ảnh"] sẽ được set để lưu khi buildRowValues
+    let photoHeaderName = 'Ảnh';
+    if (FormState.colMap && FormState.colMap['PHOTOS']) {
+       photoHeaderName = FormState.headers[FormState.colMap['PHOTOS'].index];
+    }
+    fieldPhotos.dataset.header = photoHeaderName;
+    document.body.appendChild(fieldPhotos);
+  }
+  
+  if (get('DRIVE_FOLDER') || get('PHOTOS')) {
     FormState.driveFolderId = get('DRIVE_FOLDER');
-    loadGallery(FormState.driveFolderId);
+    const csv = get('PHOTOS');
+    
+    // Nếu có sẵn CSV trong Sheet, ưu tiên load từ CSV
+    if (csv && csv.trim()) {
+      fieldPhotos.value = csv;
+      
+      // Phục hồi DriveFolderId nếu bị thiếu ở dữ liệu cũ (nhưng có link ảnh)
+      if (!FormState.driveFolderId) {
+         (async () => {
+            try {
+               const firstUrl = csv.split(',').find(s => s.trim().includes('id='));
+               if (firstUrl) {
+                   const m = firstUrl.match(/id=([^&]+)/);
+                   if (m && m[1]) {
+                       const info = await DriveAPI.getFile(m[1]);
+                       if (info && info.parents && info.parents.length > 0) {
+                           FormState.driveFolderId = info.parents[0];
+                           const el = document.getElementById('field_DRIVE_FOLDER');
+                           if (el) el.value = FormState.driveFolderId;
+                           // Load lại dropdown sau khi tìm ra
+                           if (typeof loadFolderList === 'function') loadFolderList();
+                       }
+                   }
+               }
+            } catch (e) {
+               console.warn('Không thể recover Folder ID từ ảnh:', e);
+            }
+         })();
+      }
+      
+      loadGallery(FormState.driveFolderId, csv);
+    } else if (FormState.driveFolderId) {
+      // Tương thích ngược: BĐS cũ có thư mục Drive nhưng chưa có link CSV
+      loadGallery(FormState.driveFolderId);
+    }
   }
 
   const lat = get('LAT'); const lng = get('LNG');
@@ -701,6 +1092,118 @@ function prefillForm(rowData, headers, colMap) {
   // Dynamic field prefill
   document.querySelectorAll('[data-header]').forEach((input) => {
     input.value = rowData[input.dataset.header] || '';
+  });
+
+  // Extra non-mapped fields (cố gắng prefill từ các cột tương ứng)
+  const extra = {
+    AREA_REAL: 'field_AREA_REAL',
+    FRONT: 'field_FRONT',
+    ROAD: 'field_ROAD',
+    FLOORS: 'field_FLOORS',
+    BEDROOMS: 'field_BEDROOMS',
+    DIR: 'field_DIR',
+    LEGAL: 'field_LEGAL',
+    TITLE_INFO: 'field_TITLE_INFO',
+    PROS: 'field_PROS',
+    CONS: 'field_CONS',
+  };
+
+  Object.entries(extra).forEach(([k, id]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const hints = APP_CONFIG.KNOWN_COLUMNS[k] || [k.toLowerCase()];
+    const normalized = (s) => (s || '').toLowerCase().trim();
+    const matchedHeader = headers.find((h) => hints.some((hint) => normalized(h).includes(hint)));
+    if (matchedHeader && rowData[matchedHeader] !== undefined) {
+       el.value = rowData[matchedHeader];
+    }
+  });
+
+  // Prefill ratings
+  RATINGS.forEach((r) => {
+    ratingValues[r.key] = 0; // reset
+    const normalized = (s) => (s || '').toLowerCase().trim();
+    const matchedHeader = headers.find((h) => r.fieldHints.some((hint) => normalized(h).includes(hint)));
+    if (matchedHeader && rowData[matchedHeader]) {
+       const strVal = rowData[matchedHeader].toString().trim();
+       let val = parseInt(strVal);
+       
+       // Fallback nếu dữ liệu cũ có text "3 sao", "4" hoặc match keywords
+       if (isNaN(val) || val < 1 || val > 5) {
+           const matches = strVal.match(/(\d)\s*sao/i);
+           if (matches && matches[1]) {
+               val = parseInt(matches[1]);
+           }
+       }
+       
+       if (!isNaN(val) && val >= 1 && val <= 5) {
+          ratingValues[r.key] = val;
+       }
+    }
+    // Update UI for this rating
+    const stars = document.querySelector(`.rating-stars[data-key="${r.key}"]`);
+    if (stars) updateStars(stars, ratingValues[r.key]);
+    
+    const descEl = document.getElementById(`desc_${r.key}`);
+    const v = ratingValues[r.key];
+    if (descEl) {
+        descEl.textContent = v > 0 ? `${v}⭐ - ${r.desc[v-1]}` : 'Chưa đánh giá';
+        descEl.style.color = v > 0 ? 'var(--accent)' : 'var(--text-muted)';
+    }
+  });
+
+  updateTotalScore();
+  
+  // Re-run track changes snapshot now that prefill is complete
+  setupTrackChanges();
+}
+
+function setupTrackChanges() {
+  const inputs = document.querySelectorAll('#propertyForm .form-control');
+  inputs.forEach(input => {
+    input.dataset.initialValue = input.value || '';
+    const trackHandler = function() {
+       if (this.value !== this.dataset.initialValue) {
+           this.classList.add('is-changed');
+           this.style.backgroundColor = 'rgba(0,168,255,0.1)';
+           this.style.borderColor = 'var(--accent)';
+       } else {
+           this.classList.remove('is-changed');
+           this.style.backgroundColor = '';
+           this.style.borderColor = '';
+       }
+    };
+    input.removeEventListener('input', trackHandler); // remove if exists
+    input.addEventListener('input', trackHandler);
+    input.removeEventListener('change', trackHandler);
+    input.addEventListener('change', trackHandler);
+  });
+}
+
+function addCopyButtons() {
+  document.querySelectorAll('#propertyForm .form-group').forEach(group => {
+     const label = group.querySelector('.form-label');
+     const input = group.querySelector('.form-control');
+     if (label && input && !label.querySelector('.copy-btn')) {
+        label.style.display = 'flex';
+        label.style.justifyContent = 'space-between';
+        label.style.alignItems = 'center';
+        
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'copy-btn';
+        copyBtn.innerHTML = '📋';
+        copyBtn.style.cssText = 'background:transparent;border:none;cursor:pointer;font-size:14px;opacity:0.6;padding:0 5px';
+        copyBtn.title = "Copy nội dung";
+        copyBtn.onclick = (e) => {
+            e.preventDefault();
+            if (input.value) {
+                navigator.clipboard.writeText(input.value);
+                showToast('Đã copy: ' + input.value.substring(0, 30) + (input.value.length>30?'...':''), 'info', 1000);
+            }
+        };
+        label.appendChild(copyBtn);
+     }
   });
 }
 
@@ -755,15 +1258,20 @@ async function initForm() {
     return;
   }
 
+  // Generate DOM structures before prefilling
+  initRatings();
+
   // Set today's date
   const dateEl = document.getElementById('field_DATE');
   if (dateEl && !dateEl.value) {
     dateEl.value = new Date().toISOString().split('T')[0];
   }
 
-  // Đọc row data từ localStorage (được lưu khi click từ bảng)
+  // Đọc row data + headers từ localStorage (được lưu khi click từ bảng)
   const savedRow = localStorage.getItem('_rowData');
+  const savedHeaders = localStorage.getItem('_rowHeaders');
   localStorage.removeItem('_rowData');
+  localStorage.removeItem('_rowHeaders');
 
   const spreadsheetId = localStorage.getItem(APP_CONFIG.STORAGE.SPREADSHEET_ID);
   const sheetName = localStorage.getItem(APP_CONFIG.STORAGE.SHEET_NAME);
@@ -776,12 +1284,43 @@ async function initForm() {
     document.getElementById('formPageTitle').textContent = 'Xem / Sửa BĐS';
     document.getElementById('btnSaveText').textContent = '💾 Cập nhật';
 
-    // Load headers để build colMap, rồi điền form
-    if (spreadsheetId && sheetName) {
+    if (savedHeaders) {
+      // Dùng headers từ localStorage — không cần API call
+      let headers = JSON.parse(savedHeaders);
+      let colMap = buildColMap(headers);
+      
+      // Auto-create column 'Ảnh' nếu nó chưa có
+      if (colMap['PHOTOS'] === undefined) {
+        try {
+           showToast('Hệ thống đang thêm tính năng Cột Ảnh vào Sheet...', 'info');
+           await SheetsAPI.addColumnHeader(spreadsheetId, sheetName, 'Ảnh');
+           SheetsAPI.invalidateCache();
+           const fresh = await SheetsAPI.getCachedRows(spreadsheetId, sheetName, true);
+           headers = fresh.headers;
+           colMap = buildColMap(headers);
+        } catch(e) { console.error('Auto create PHOTOS col failed:', e); }
+      }
+
+      FormState.headers = headers;
+      FormState.colMap = colMap;
+      renderDynamicFields(headers, FormState.colMap);
+      prefillForm(rowObj, headers, FormState.colMap);
+    } else if (spreadsheetId && sheetName) {
+      // Fallback: lấy headers từ cache
       try {
-        const { headers } = await SheetsAPI.getCachedRows(spreadsheetId, sheetName);
+        let { headers } = await SheetsAPI.getCachedRows(spreadsheetId, sheetName);
+        let colMap = buildColMap(headers);
+        
+        if (colMap['PHOTOS'] === undefined) {
+           await SheetsAPI.addColumnHeader(spreadsheetId, sheetName, 'Ảnh');
+           SheetsAPI.invalidateCache();
+           const fresh = await SheetsAPI.getCachedRows(spreadsheetId, sheetName, true);
+           headers = fresh.headers;
+           colMap = buildColMap(headers);
+        }
+
         FormState.headers = headers;
-        FormState.colMap = buildColMap(headers);
+        FormState.colMap = colMap;
         renderDynamicFields(headers, FormState.colMap);
         prefillForm(rowObj, headers, FormState.colMap);
       } catch (err) {
@@ -795,10 +1334,32 @@ async function initForm() {
 
     if (spreadsheetId && sheetName) {
       try {
-        const { headers } = await SheetsAPI.getCachedRows(spreadsheetId, sheetName);
+        let { headers } = await SheetsAPI.getCachedRows(spreadsheetId, sheetName);
+        let colMap = buildColMap(headers);
+        
+        if (colMap['PHOTOS'] === undefined) {
+           await SheetsAPI.addColumnHeader(spreadsheetId, sheetName, 'Ảnh');
+           SheetsAPI.invalidateCache();
+           const fresh = await SheetsAPI.getCachedRows(spreadsheetId, sheetName, true);
+           headers = fresh.headers;
+           colMap = buildColMap(headers);
+        }
+
         FormState.headers = headers;
-        FormState.colMap = buildColMap(headers);
+        FormState.colMap = colMap;
         renderDynamicFields(headers, FormState.colMap);
+        
+        // Setup hidden PHOTOS field
+        let fieldPhotos = document.getElementById('field_PHOTOS');
+        if (!fieldPhotos) {
+          fieldPhotos = document.createElement('input');
+          fieldPhotos.type = 'hidden';
+          fieldPhotos.id = 'field_PHOTOS';
+          let photoHeaderName = 'Ảnh';
+          if (colMap['PHOTOS']) photoHeaderName = headers[colMap['PHOTOS'].index];
+          fieldPhotos.dataset.header = photoHeaderName;
+          document.body.appendChild(fieldPhotos);
+        }
       } catch (err) {
         console.error('Load headers error:', err);
       }
@@ -811,7 +1372,9 @@ async function initForm() {
     if (dateEl) dateEl.value = nowLocalIso();
   });
 
-  initRatings();
+  // Khởi tạo các module con
+  setupTrackChanges();
+  addCopyButtons();
   setupAutoCalc();
   setupGPS();
   setupCallBtn();
@@ -820,10 +1383,18 @@ async function initForm() {
   // Form events
   document.getElementById('propertyForm')?.addEventListener('submit', handleSubmit);
   document.getElementById('btnCancel')?.addEventListener('click', () => history.back());
-  document.getElementById('btnClearForm')?.addEventListener('click', () => {
-    if (confirm('Xóa tất cả dữ liệu đã nhập?')) {
+  document.getElementById('btnClearForm')?.addEventListener('click', async () => {
+    const ok = await showConfirm('Xóa form?', 'Toàn bộ dữ liệu đã nhập sẽ bị xóa.', true);
+    if (ok) {
       document.getElementById('propertyForm')?.reset();
-      RATINGS.forEach((r) => (ratingValues[r.key] = 0));
+      RATINGS.forEach((r) => {
+          ratingValues[r.key] = 0;
+          const descEl = document.getElementById(`desc_${r.key}`);
+          if (descEl) {
+              descEl.textContent = 'Chưa đánh giá';
+              descEl.style.color = 'var(--text-muted)';
+          }
+      });
       document.querySelectorAll('.star-btn').forEach((b) => b.classList.remove('active'));
       document.getElementById('totalScoreDisplay').style.display = 'none';
     }

@@ -194,15 +194,16 @@ h4 { font-size: 0.95rem; font-weight: 600; }
 .bottom-nav {
   position: fixed;
   bottom: 0; left: 0; right: 0;
-  height: var(--bottom-nav-height);
-  background: rgba(22, 27, 34, 0.95);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-top: 1px solid var(--border);
+  height: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, rgba(13, 17, 23, 1) 0%, rgba(22, 27, 34, 0.85) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   padding: 0 var(--space-2);
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   z-index: 100;
 }
 
@@ -211,27 +212,37 @@ h4 { font-size: 0.95rem; font-weight: 600; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: var(--space-2) var(--space-1);
+  justify-content: center;
+  gap: 4px;
+  height: var(--bottom-nav-height);
   border-radius: var(--radius-md);
-  font-size: 0.65rem;
+  font-size: 0.68rem;
   font-weight: 500;
-  color: var(--text-muted);
-  transition: all var(--fast);
+  color: #7b8b9a;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 }
 
-.bottom-nav-item .nav-icon { font-size: 1.3rem; line-height: 1; }
-.bottom-nav-item span { line-height: 1; }
+.bottom-nav-item .nav-icon { 
+  font-size: 1.4rem; 
+  line-height: 1; 
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), filter 0.3s;
+}
+.bottom-nav-item span { line-height: 1; transition: color 0.3s; }
 
 .bottom-nav-item.active {
   color: var(--accent);
 }
 
 .bottom-nav-item.active .nav-icon {
-  filter: drop-shadow(0 0 6px var(--accent));
+  transform: translateY(-3px) scale(1.15);
+  filter: drop-shadow(0 4px 12px rgba(0, 212, 170, 0.8));
+}
+
+.bottom-nav-item.active span {
+  font-weight: 700;
 }
 
 .bottom-nav-item:active { transform: scale(0.92); }
@@ -418,7 +429,7 @@ h4 { font-size: 0.95rem; font-weight: 600; }
 /* ── FAB ──────────────────────────────────────────────────── */
 .fab {
   position: fixed;
-  bottom: calc(var(--bottom-nav-height) + var(--space-4));
+  bottom: calc(var(--bottom-nav-height) + var(--space-3) + env(safe-area-inset-bottom, 0px));
   right: var(--space-4);
   width: 56px; height: 56px;
   border-radius: 50%;
@@ -1215,7 +1226,7 @@ th:hover .v2-col-delete {
 /* ── AI Chat Panel ───────────────────────────────────────── */
 .ai-fab {
   position: fixed;
-  bottom: calc(var(--bottom-nav-height) + var(--space-4));
+  bottom: calc(var(--bottom-nav-height) + var(--space-3) + env(safe-area-inset-bottom, 0px));
   left: var(--space-4);
   width: 52px; height: 52px;
   border-radius: 50%;

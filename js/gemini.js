@@ -49,7 +49,7 @@ const GeminiAI = (() => {
   function getSessionsList() {
     return Object.keys(sessionsState.list).map(id => ({
       id,
-      title: sessionsState.list[id].title
+      title: sessionsState.list[id].title || 'Chat mới'
     })).reverse();
   }
 
@@ -149,10 +149,12 @@ ${buildContext()}`;
       if (r.ok) {
         const data = await r.json();
         let title = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        title = title.replace(/['"]/g, '').trim();
-        if (title.length > 0 && title.length < 30) {
+        title = title.replace(/['"]|\n/g, '').trim();
+        if (title.length > 0 && title.length < 40) {
           getActiveSession().title = title;
           saveSessions();
+          // Cập nhật UI ngay khi có title mới
+          if (window._triggerSessionUIDocUpdate) window._triggerSessionUIDocUpdate();
         }
       }
     } catch(e) {} // Bỏ qua nếu lỗi
@@ -202,9 +204,7 @@ ${buildContext()}`;
         saveSessions();
 
         // Nếu là tin nhắn đầu tiên, đặt tên
-        if (isFirstMessage) generateSessionTitle(userMessage).then(() => {
-          if (window._triggerSessionUIDocUpdate) window._triggerSessionUIDocUpdate();
-        });
+        if (isFirstMessage) generateSessionTitle(userMessage).catch(() => {});
 
         return reply;
       }
@@ -218,7 +218,7 @@ ${buildContext()}`;
 
       chatHistory.pop(); saveSessions();
       if (r.status === 400 && detail.includes('API_KEY')) throw new Error('API key không hợp lệ.');
-      if (r.status === 403) throw new Error('API chưa được bật.');
+      if (r.status === 403) throw new Error('API chưa được bật. Hãy lấy key mới từ aistudio.google.com');
       if (r.status === 429) throw new Error('Quá giới hạn (Rate limit). Thử lại sau.');
       throw new Error(detail || `Lỗi ${r.status}`);
     }

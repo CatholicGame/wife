@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#0d1117">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Chi tiết BĐS – BĐS Khảo Sát</title>
   <link rel="stylesheet" href="css/app.css">
   <style>
@@ -265,6 +268,24 @@
 </head>
 <body>
 
+<!-- DEBUG BANNER: remove after fixing -->
+<div id="debugBanner" style="position:fixed;top:0;left:0;right:0;background:#00ff00;color:#000;font-size:20px;font-weight:bold;padding:10px;z-index:99999;text-align:center">
+  ✅ DETAIL.HTML ĐÃ LOAD — đang chờ JS...
+</div>
+<script>
+  // Ghi rõ trạng thái ngay khi HTML parse xong, trước mọi JS khác
+  console.error('=== DETAIL.HTML LOADED AT: ' + new Date().toISOString() + ' ===');
+  console.log('rowParam from URL:', new URLSearchParams(location.search).get('row'));
+  console.log('spreadsheetId in localStorage:', !!localStorage.getItem('bds_spreadsheet_id'));
+  console.log('sheetName in localStorage:', localStorage.getItem('bds_sheet_name'));
+  console.log('token in sessionStorage:', !!sessionStorage.getItem('bds_access_token'));
+  console.log('token in localStorage:', !!localStorage.getItem('bds_access_token'));
+  setTimeout(function() {
+    var b = document.getElementById('debugBanner');
+    if (b) b.style.display = 'none';
+  }, 5000);
+</script>
+
 <!-- ── Hero ── -->
 <div class="detail-hero" id="detailHero">
   <div class="hero-emoji" id="heroEmoji">🏠</div>
@@ -361,12 +382,13 @@
 </div>
 
 <!-- Scripts -->
-<script src="js/config.js?v=2360"></script>
-<script src="js/auth.js?v=2360"></script>
-<script src="js/sheets.js?v=2360"></script>
-<script src="js/drive.js?v=2360"></script>
-<script src="js/col-mapper.js?v=2360"></script>
-<script src="js/detail.js?v=2360"></script>
+<script src="js/config.js?v=2402"></script>
+<script src="js/auth.js?v=2402"></script>
+<script src="js/sheets.js?v=2402"></script>
+<script src="js/drive.js?v=2402"></script>
+<script src="js/col-mapper.js?v=2402"></script>
+<script src="js/dialogs.js?v=2402"></script>
+<script src="js/detail.js?v=2402"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://apis.google.com/js/api.js" async defer></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

@@ -24,28 +24,47 @@ const Auth = (() => {
     _accessToken = token;
     const secs = (expiresIn && !isNaN(expiresIn)) ? Number(expiresIn) : 3599;
     _tokenExpiry = Date.now() + (secs - 60) * 1000;
+    // Lưu vào BOTH localStorage VÀ sessionStorage để tương thích với mọi phiên bản trang
+    localStorage.setItem(APP_CONFIG.STORAGE.ACCESS_TOKEN, token);
+    localStorage.setItem(APP_CONFIG.STORAGE.TOKEN_EXPIRY, String(_tokenExpiry));
     sessionStorage.setItem(APP_CONFIG.STORAGE.ACCESS_TOKEN, token);
     sessionStorage.setItem(APP_CONFIG.STORAGE.TOKEN_EXPIRY, String(_tokenExpiry));
-    // Bỏ flag "đã đăng xuất" khi có token mới
     localStorage.removeItem(KEY_SIGNED_OUT);
   }
 
   function _load() {
-    const t = sessionStorage.getItem(APP_CONFIG.STORAGE.ACCESS_TOKEN);
-    const e = Number(sessionStorage.getItem(APP_CONFIG.STORAGE.TOKEN_EXPIRY) || 0);
+    // Ưu tiên localStorage (mới), fallback sessionStorage (cũ) và migrate
+    let t = localStorage.getItem(APP_CONFIG.STORAGE.ACCESS_TOKEN);
+    let e = Number(localStorage.getItem(APP_CONFIG.STORAGE.TOKEN_EXPIRY) || 0);
+
+    // Fallback: nếu không có trong localStorage thì thử sessionStorage
+    if (!t || Date.now() >= e) {
+      const st = sessionStorage.getItem(APP_CONFIG.STORAGE.ACCESS_TOKEN);
+      const se = Number(sessionStorage.getItem(APP_CONFIG.STORAGE.TOKEN_EXPIRY) || 0);
+      if (st && Date.now() < se) {
+        // Migrate sang localStorage
+        localStorage.setItem(APP_CONFIG.STORAGE.ACCESS_TOKEN, st);
+        localStorage.setItem(APP_CONFIG.STORAGE.TOKEN_EXPIRY, String(se));
+        t = st; e = se;
+        console.log('[Auth] Token migrated from sessionStorage → localStorage');
+      }
+    }
+
     if (t && Date.now() < e) {
       _accessToken = t;
       _tokenExpiry  = e;
+      console.log('[Auth] Token loaded, expires:', new Date(e).toLocaleTimeString());
       return true;
     }
+    console.warn('[Auth] No valid token found in localStorage or sessionStorage');
     return false;
   }
 
   function _clear() {
     _accessToken = null;
     _tokenExpiry  = 0;
-    sessionStorage.removeItem(APP_CONFIG.STORAGE.ACCESS_TOKEN);
-    sessionStorage.removeItem(APP_CONFIG.STORAGE.TOKEN_EXPIRY);
+    localStorage.removeItem(APP_CONFIG.STORAGE.ACCESS_TOKEN);
+    localStorage.removeItem(APP_CONFIG.STORAGE.TOKEN_EXPIRY);
     sessionStorage.removeItem(APP_CONFIG.STORAGE.CACHED_DATA);
     sessionStorage.removeItem(APP_CONFIG.STORAGE.CACHE_TIME);
   }

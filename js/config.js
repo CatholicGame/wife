@@ -97,7 +97,8 @@ const APP_CONFIG = {
     LAT:      ['lat', 'latitude', 'vĩ độ', 'vi do'],
     LNG:      ['lng', 'lon', 'longitude', 'kinh độ', 'kinh do'],
     DRIVE_FOLDER: ['drive folder id', 'drive_folder_id', 'folder id', 'ảnh folder'],
-    PHOTO_COUNT:  ['số ảnh', 'so anh', 'ảnh', 'photos', 'photo count', 'sl ảnh'],
+    PHOTOS:       ['ảnh', 'anh', 'photos', 'images', 'image', 'hình ảnh', 'hinh anh', 'link ảnh'],
+    PHOTO_COUNT:  ['số ảnh', 'so anh', 'photo count', 'sl ảnh'],
   },
 
 

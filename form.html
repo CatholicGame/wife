@@ -306,6 +306,7 @@
             <option value="">— Chọn folder —</option>
           </select>
           <button type="button" class="btn btn-secondary upload-picker-add" id="btnNewFolder" title="Tạo folder mới">+ Mới</button>
+          <button type="button" class="btn btn-secondary upload-picker-add" id="btnDeleteFolder" title="Xóa folder này" style="color:var(--red);margin-left:4px;display:none;padding:0 8px">🗑️</button>
         </div>
 
         <!-- Category / price range -->
@@ -431,16 +432,26 @@
   </button>
 </div>
 
+<!-- ── Fullscreen Image Preview ── -->
+<div id="imageLightbox" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:9999;flex-direction:column;align-items:center;justify-content:center;backdrop-filter:blur(4px)">
+  <button type="button" id="lightboxClose" style="position:absolute;top:20px;right:20px;background:rgba(255,255,255,0.2);color:#fff;border:none;border-radius:50%;width:40px;height:40px;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:10000;transition:background 0.2s">✕</button>
+  <button type="button" id="lightboxPrev" style="position:absolute;top:50%;left:20px;transform:translateY(-50%);background:rgba(255,255,255,0.2);color:#fff;border:none;border-radius:50%;width:40px;height:40px;font-size:20px;display:none;align-items:center;justify-content:center;cursor:pointer;z-index:10000;transition:background 0.2s">❮</button>
+  <button type="button" id="lightboxNext" style="position:absolute;top:50%;right:20px;transform:translateY(-50%);background:rgba(255,255,255,0.2);color:#fff;border:none;border-radius:50%;width:40px;height:40px;font-size:20px;display:none;align-items:center;justify-content:center;cursor:pointer;z-index:10000;transition:background 0.2s">❯</button>
+  <div id="lightboxCounter" style="position:absolute;bottom:20px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.7);font-size:14px;z-index:10000"></div>
+  <img id="lightboxImg" src="" style="max-width:95vw;max-height:90vh;object-fit:contain;border-radius:4px;box-shadow:0 0 20px rgba(0,0,0,0.5);transition:opacity 0.2s">
+</div>
+
 <!-- ── Toast ── -->
 <div class="toast-container" id="toastContainer"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="js/config.js?v=2360"></script>
-<script src="js/auth.js?v=2360"></script>
-<script src="js/sheets.js?v=2360"></script>
-<script src="js/drive.js?v=2360"></script>
-<script src="js/col-mapper.js?v=2360"></script>
-<script src="js/form.js?v=2360"></script>
+<script src="js/config.js?v=2402"></script>
+<script src="js/auth.js?v=2402"></script>
+<script src="js/sheets.js?v=2402"></script>
+<script src="js/drive.js?v=2402"></script>
+<script src="js/col-mapper.js?v=2402"></script>
+<script src="js/dialogs.js?v=2402"></script>
+<script src="js/form.js?v=2402"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://apis.google.com/js/api.js" async defer></script>
 </body>

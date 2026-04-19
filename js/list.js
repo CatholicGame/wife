@@ -59,7 +59,7 @@ const State = {
   activeStatus: null,
   sortBy: 'date-desc',
   isLoading: false,
-  viewMode: localStorage.getItem('bds_view_mode') || 'table', // 'card' | 'table'
+  viewMode: 'refactor', // Only V2 table
 };
 
 // ─── Column Mapping ───────────────────────────────────────────────────────────
@@ -214,51 +214,47 @@ function row_desc(a, b) {
   return b._row - a._row;
 }
 
-// ─── Render (dispatcher) ──────────────────────────────────────────────────────
+// ─── Render ───────────────────────────────────────────────────────────────────
 function renderList() {
-  const cardContainer = document.getElementById('propertiesList');
-  const tableContainer = document.getElementById('tableView');
   const countEl = document.getElementById('listCount');
-
   if (countEl) {
     countEl.textContent = State.filtered.length === 0
       ? '0 kết quả'
       : `${State.filtered.length} bất động sản`;
   }
 
+  const container = document.getElementById('refactorView');
+  if (!container) return;
+
   if (State.filtered.length === 0) {
-    const empty = `
+    container.innerHTML = `
       <div class="empty-state">
         <div class="empty-icon">🔍</div>
         <h3>Không tìm thấy</h3>
         <p>Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm</p>
       </div>`;
-    if (cardContainer) cardContainer.innerHTML = empty;
-    if (tableContainer) tableContainer.innerHTML = empty;
     return;
   }
 
-  const refactorContainer = document.getElementById('refactorView');
-
-  if (State.viewMode === 'table') {
-    if (cardContainer) cardContainer.classList.add('hidden');
-    if (refactorContainer) refactorContainer.classList.add('hidden');
-    if (tableContainer) { tableContainer.classList.remove('hidden'); renderTable(); }
-  } else if (State.viewMode === 'refactor') {
-    if (cardContainer) cardContainer.classList.add('hidden');
-    if (tableContainer) tableContainer.classList.add('hidden');
-    if (refactorContainer) { refactorContainer.classList.remove('hidden'); renderV2Table(); }
-  } else {
-    if (tableContainer) tableContainer.classList.add('hidden');
-    if (refactorContainer) refactorContainer.classList.add('hidden');
-    if (cardContainer) { cardContainer.classList.remove('hidden'); renderCards(); }
-  }
+  renderV2Table();
 }
 
 function renderCards() {
   const container = document.getElementById('propertiesList');
   if (!container) return;
   container.innerHTML = State.filtered.map(renderCard).join('');
+  // Bắt sự kiện click trên card thay vì dùng href trực tiếp
+  container.querySelectorAll('a.prop-card').forEach(card => {
+    card.addEventListener('click', (e) => {
+      e.preventDefault();
+      const rowNum = parseInt(card.dataset.row);
+      const rowObj = State.filtered.find(r => r._row === rowNum);
+      if (!rowObj) return;
+      localStorage.setItem('_rowData', JSON.stringify(rowObj));
+      localStorage.setItem('_rowHeaders', JSON.stringify(State.headers));
+      window.location.href = 'form.html';
+    });
+  });
 }
 
 // ─── Table View ──────────────────────────────────────────────────────────────
@@ -341,14 +337,19 @@ function renderTable() {
     </table>
   `;
 
-  // Một event listener duy nhất xử lý tất cả click
+  // Row click → save vào localStorage và mở form.html
   container.querySelector('table').addEventListener('click', e => {
     const target = e.target.closest('[data-rownum]');
-    if (!target) return;
+    console.log('[TableClick] target:', target, '| e.target.tagName:', e.target.tagName);
+    if (!target) { console.log('[TableClick] no data-rownum target'); return; }
     const rowNum = parseInt(target.dataset.rownum);
     const rowObj = window._rowMap[rowNum];
-    if (!rowObj) return;
-    window.location.href = 'detail.html?row=' + rowNum;
+    console.log('[TableClick] rowNum:', rowNum, '| rowObj found:', !!rowObj);
+    if (!rowObj) { console.error('[TableClick] rowObj not found in _rowMap'); return; }
+    localStorage.setItem('_rowData', JSON.stringify(rowObj));
+    localStorage.setItem('_rowHeaders', JSON.stringify(State.headers));
+    console.log('[TableClick] navigating to form.html with row', rowNum);
+    window.location.href = 'form.html';
   });
 }
 
@@ -364,6 +365,8 @@ const V2_DEFAULT_COLS = [
   { id: 'map',       label: 'Link Map',       group: 'green',    knownKey: 'MAPS_LINK' },
   { id: 'address',   label: 'Địa chỉ',       group: 'green',    knownKey: 'ADDRESS' },
   { id: 'district',  label: 'Quận/Huyện',     group: 'green',    knownKey: 'DISTRICT' },
+  { id: 'owner',     label: 'Đầu chủ',       group: 'red',      knownKey: 'OWNER' },
+  { id: 'phone',     label: 'SĐT',            group: 'red',      knownKey: 'PHONE' },
   { id: 'price',     label: 'Giá (Tỷ)',      group: 'orange',   knownKey: 'PRICE' },
   { id: 'area',      label: 'DT (m²)',        group: 'orange',   knownKey: 'AREA' },
   { id: 'front',     label: 'Mặt tiền (m)',   group: 'orange',   knownKey: 'FRONT' },
@@ -376,8 +379,7 @@ const V2_DEFAULT_COLS = [
   { id: 'cons',      label: 'Nhược điểm',    group: 'purple',   knownKey: 'CONS' },
   { id: 'notes',     label: 'Nhận xét chung', group: 'purple',   knownKey: 'NOTES' },
   { id: 'score',     label: 'Tổng điểm',     group: 'purple',   knownKey: 'SCORE' },
-  { id: 'owner',     label: 'Đầu chủ',       group: 'red',      knownKey: 'OWNER' },
-  { id: 'phone',     label: 'SĐT',            group: 'red',      knownKey: 'PHONE' },
+  { id: 'photos',    label: 'Ảnh',            group: 'default',  knownKey: 'PHOTOS' },
 ];
 
 const V2_GROUP_BG = {
@@ -390,6 +392,12 @@ const V2_GROUP_BG = {
 
 function getV2Columns() {
   try {
+    const ver = localStorage.getItem('v2_col_v3');
+    if (!ver) {
+      localStorage.setItem('v2_col_v3', '1');
+      localStorage.removeItem(V2_COLS_KEY); // wipe old layout
+      return [...V2_DEFAULT_COLS];
+    }
     const saved = localStorage.getItem(V2_COLS_KEY);
     if (saved) return JSON.parse(saved);
   } catch (e) {}
@@ -411,13 +419,7 @@ function renderV2Table() {
   if (!window._rowMap) window._rowMap = {};
   rows.forEach(row => { window._rowMap[row._row] = row; });
 
-  // Toolbar
-  const toolbar = `
-    <div class="v2-toolbar">
-      <span class="v2-toolbar-title">✨ V2 • ${cols.length} cột</span>
-      <button class="v2-add-col-btn" id="v2BtnAddCol">➕ Thêm cột</button>
-    </div>
-  `;
+  // (No toolbar — add column button is now in the list header)
 
   // Build header
   const thCells = cols.map((col, i) => {
@@ -426,7 +428,7 @@ function renderV2Table() {
       ? ''
       : '<button class="v2-col-delete" data-col-idx="' + i + '" title="Xóa cột">✕</button>';
     return '<th style="background:' + bg + '"><div class="v2-th-wrap"><span>' + col.label + '</span>' + deleteBtn + '</div></th>';
-  }).join('');
+  }).join('') + '<th style="background:var(--bg-card);position:sticky;right:0;z-index:10;box-shadow:-2px 0 5px rgba(0,0,0,0.1);min-width:50px"><div class="v2-th-wrap" style="justify-content:center"><span>Xóa</span></div></th>';
 
   // Build body
   const bodyRows = rows.map((row, rowIdx) => {
@@ -459,6 +461,10 @@ function renderV2Table() {
         const short = val.length > 25 ? val.substring(0, 25) + '…' : val;
         return '<td><a href="' + val + '" target="_blank" style="color:var(--accent);text-decoration:none;font-size:0.75rem" title="' + val + '">🗺️ ' + short + '</a></td>';
       }
+      if ((col.knownKey === 'PHOTOS' || (col.headerName && col.headerName.toLowerCase() === 'ảnh')) && val) {
+        const count = val.split(',').filter(x => x.trim()).length;
+        val = '<span class="badge badge-accent" style="font-size:0.75rem">📸 ' + count + ' ảnh</span>';
+      }
       if (col.knownKey === 'ADDRESS') {
         return '<td class="col-addr" style="color:var(--accent);font-weight:700;cursor:pointer" data-v2row="' + row._row + '">' + (val || '(xem)') + '</td>';
       }
@@ -468,18 +474,20 @@ function renderV2Table() {
 
       return '<td>' + (val || '') + '</td>';
     }).join('');
-    return '<tr data-v2row="' + row._row + '" style="cursor:pointer">' + cells + '</tr>';
+    
+    const actionCell = '<td style="position:sticky;right:0;background:var(--bg-surface);text-align:center;z-index:9;box-shadow:-2px 0 5px rgba(0,0,0,0.1)"><button class="btn btn-danger btn-delete-row" data-row="' + row._row + '" style="padding:4px 8px;font-size:0.75rem;border-radius:4px" title="Xóa dòng này">🗑️</button></td>';
+    return '<tr data-v2row="' + row._row + '" style="cursor:pointer">' + cells + actionCell + '</tr>';
   }).join('');
 
-  container.innerHTML = toolbar +
+  container.innerHTML =
     '<table class="data-table">' +
     '<thead><tr>' + thCells + '</tr></thead>' +
     '<tbody>' + bodyRows + '</tbody>' +
     '</table>';
 
   // ── Events ──
-  // Add column button
-  container.querySelector('#v2BtnAddCol')?.addEventListener('click', () => {
+  // Add column button (in list header)
+  document.getElementById('btnAddColFromHeader')?.addEventListener('click', () => {
     document.getElementById('newColName').value = '';
     document.getElementById('newColGroup').value = 'default';
     document.getElementById('addColModal').classList.remove('hidden');
@@ -497,15 +505,44 @@ function renderV2Table() {
     });
   });
 
-  // Row click -> open form
+  // Delete row buttons
+  container.querySelectorAll('.btn-delete-row').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const rowId = parseInt(btn.dataset.row);
+      if (!confirm('Bạn có chắc chắn muốn xóa BĐS này khỏi bảng? Dữ liệu bị xóa không thể khôi phục!')) return;
+      
+      const spreadsheetId = localStorage.getItem(APP_CONFIG.STORAGE.SPREADSHEET_ID);
+      const sheetName = localStorage.getItem(APP_CONFIG.STORAGE.SHEET_NAME);
+      try {
+        btn.disabled = true;
+        btn.textContent = '⏳';
+        const sheetIdNum = await SheetsAPI.getSheetId(spreadsheetId, sheetName);
+        if (sheetIdNum === undefined) throw new Error('Không tìm thấy ID Worksheet (Vui lòng liên kết lại Sheet)');
+        await SheetsAPI.deleteRow(spreadsheetId, sheetName, rowId + 2, sheetIdNum);
+        showToast('Đã xóa dòng thành công ✓', 'success');
+        SheetsAPI.invalidateCache();
+        await loadData(true);
+      } catch (err) {
+        showToast('Lỗi xóa: ' + err.message, 'error');
+        btn.disabled = false;
+        btn.textContent = '🗑️';
+      }
+    });
+  });
+
+  // Row click → save vào localStorage và mở form.html
   container.querySelector('table')?.addEventListener('click', (e) => {
     const td = e.target.closest('[data-v2row]');
     if (!td) return;
-    if (e.target.closest('.v2-col-delete') || e.target.closest('a')) return;
+    if (e.target.closest('.v2-col-delete') || e.target.closest('a') || e.target.closest('.btn-delete-row')) return;
     const rowNum = parseInt(td.dataset.v2row || td.closest('tr')?.dataset.v2row);
-    if (rowNum) {
-      window.location.href = 'detail.html?row=' + rowNum;
-    }
+    if (!rowNum) return;
+    const rowObj = State.filtered.find(r => r._row === rowNum);
+    if (!rowObj) return;
+    localStorage.setItem('_rowData', JSON.stringify(rowObj));
+    localStorage.setItem('_rowHeaders', JSON.stringify(State.headers));
+    window.location.href = 'form.html';
   });
 }
 
@@ -600,7 +637,7 @@ async function loadData(forceRefresh = false) {
     applyFiltersAndSort();
     renderList();
 
-    document.getElementById('sheetRowCount') && (document.getElementById('sheetRowCount').textContent = State.allRows.length);
+    // (sheetRowCount removed — count is shown in listCount instead)
 
     // Nếu ADDRESS chưa map được và chưa có saved mapping → tự mở mapper
     const hasSavedMap = Object.keys(ColMapper.load()).length > 0;
@@ -697,7 +734,8 @@ function showLoginScreen() {
   document.getElementById('mainContent').classList.add('hidden');
   document.getElementById('fabAdd').classList.add('hidden');
   document.getElementById('sheetInfoBar').classList.add('hidden');
-  
+  document.getElementById('btnSetupCols')?.classList.add('hidden');
+  document.getElementById('btnChangeSheet')?.classList.add('hidden');
   document.getElementById('aiFabBtn')?.classList.add('hidden');
   document.getElementById('aiPanel')?.classList.add('hidden');
 }
@@ -727,7 +765,8 @@ function showUI() {
   document.getElementById('mainContent').classList.remove('hidden');
   document.getElementById('fabAdd').classList.remove('hidden');
   document.getElementById('sheetInfoBar').classList.remove('hidden');
-  
+  document.getElementById('btnSetupCols')?.classList.remove('hidden');
+  document.getElementById('btnChangeSheet')?.classList.remove('hidden');
   document.getElementById('aiFabBtn')?.classList.remove('hidden');
 
   const sheetName = localStorage.getItem(APP_CONFIG.STORAGE.SPREADSHEET_NAME);
@@ -846,15 +885,7 @@ function debounce(fn, ms) {
 
 // ─── Event Listeners ──────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  // View toggle
-  document.getElementById('viewToggle')?.addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-view]');
-    if (btn) setViewMode(btn.dataset.view);
-  });
-  // Sync toggle button active state on load
-  document.querySelectorAll('#viewToggle button').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.view === State.viewMode);
-  });
+  // (View toggle removed — chỉ dùng V2 table)
 
   // Filter chips
   document.getElementById('filterRow')?.addEventListener('click', (e) => {
@@ -900,7 +931,7 @@ document.addEventListener('DOMContentLoaded', () => {
       await Auth.init();
       await Auth.signIn();   // ← mở popup Google 1 lần duy nhất
       const spreadsheetId = localStorage.getItem(APP_CONFIG.STORAGE.SPREADSHEET_ID);
-      if (spreadsheetId) { showUI(); await loadData(); }
+      if (spreadsheetId) { showUI(); await loadData(true); } // <-- force refresh here
       else showConnectBanner();
     } catch (e) {
       showToast('Đăng nhập thất bại: ' + (e.message || 'Vui lòng thử lại'), 'error');
@@ -1034,6 +1065,7 @@ function initAIChat() {
   // Đổi Session
   sessionSelect?.addEventListener('change', (e) => {
     GeminiAI.switchSession(e.target.value);
+    updateSessionSelect(); // refresh để đảm bảo title hiển thị đúng
     renderHistory();
   });
 
@@ -1043,6 +1075,7 @@ function initAIChat() {
     updateSessionSelect();
     renderHistory();
     input?.focus();
+    showToast('Đã tạo chat mới', 'success');
   });
 
   // Xuất Google Docs
@@ -1116,11 +1149,14 @@ function initAIChat() {
       const reply = await GeminiAI.chat(text);
       typingEl.remove();
       appendMessage('ai', reply);
+      updateSessionSelect(); // refresh title có thể đã được AI generate
     } catch (err) {
       typingEl.remove();
       if (err.message === 'NO_API_KEY') {
         appendMessage('error', '⚠️ Chưa có API key. Nhấn ⚙️ để cài đặt.');
         if (setupEl) setupEl.style.display = 'block';
+      } else if (err.message.startsWith('API chưa được bật')) {
+        appendMessage('error', '❌ API chưa được bật. Vào console.cloud.google.com → APIs → bật "Generative Language API". Hoặc dùng key từ aistudio.google.com');
       } else {
         appendMessage('error', '❌ ' + err.message);
       }

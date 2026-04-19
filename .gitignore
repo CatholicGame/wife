@@ -42,3 +42,11 @@ dist/
 dist-ssr/
 build/
 out/
+
+# Scratch / test files (may contain API keys)
+test.js
+test*.js
+scratch*.js
+
+# Local config overrides with secrets
+js/config.local.js

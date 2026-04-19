@@ -161,6 +161,17 @@ const DriveAPI = (() => {
     await fetch(`${DRIVE_BASE}/files/${fileId}`, { method: 'DELETE', headers: hdrs });
   }
 
+  /**
+   * Truy xuất thông tin cơ bản của file/folder
+   */
+  async function getFile(fileId) {
+    if (!fileId) return null;
+    const hdrs = await authHeaders();
+    const r = await fetch(`${DRIVE_BASE}/files/${fileId}?fields=id,name,parents`, { headers: hdrs });
+    if (!r.ok) return null;
+    return await r.json();
+  }
+
   // ─── Thumbnail URL ────────────────────────────────────────────────────────────
 
   /**
@@ -329,6 +340,7 @@ const DriveAPI = (() => {
     uploadPhoto,
     listPhotos,
     deleteFile,
+    getFile,
     getThumbnailUrl,
     getDirectUrl,
     capturePhoto,

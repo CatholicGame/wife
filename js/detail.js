@@ -219,7 +219,8 @@ function renderDetail(row, headers, colMap) {
   });
 
   document.getElementById('btnDelete').addEventListener('click', async () => {
-    if (!confirm(`Xóa BĐS "${address}"?\nThao tác này không thể hoàn tác.`)) return;
+    const ok = await showConfirm(`Xóa bất động sản này?`, `“${address}” sẽ bị xóa vĩnh viễn khỏi Google Sheet.`, true);
+    if (!ok) return;
     try {
       const spreadsheetId = localStorage.getItem(APP_CONFIG.STORAGE.SPREADSHEET_ID);
       const sheetName = localStorage.getItem(APP_CONFIG.STORAGE.SHEET_NAME);
@@ -252,7 +253,7 @@ async function loadPhotos(folderId, container) {
       thumb.querySelector('img').addEventListener('click', () => openLightbox(DriveAPI.getDirectUrl(photo.id)));
       thumb.querySelector('.photo-del-btn').addEventListener('click', async (e) => {
         e.stopPropagation();
-        if (!confirm('Xóa ảnh này?')) return;
+        if (!await showConfirm('Xóa ảnh này?', 'Ảnh sẽ bị xóa khỏi Google Drive.', true)) return;
         try {
           await DriveAPI.deleteFile(photo.id);
           thumb.remove();
@@ -328,38 +329,62 @@ async function addPhoto(row, colMap, headers) {
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 async function initDetail() {
-  let t = 0;
-  while (typeof google === 'undefined' && t++ < 20) await new Promise((r) => setTimeout(r, 200));
-  await Auth.init();
-
-  if (!Auth.isSignedIn()) {
-    showToast('Vui lòng đăng nhập', 'error');
-    setTimeout(() => (window.location.href = 'index.html'), 1500);
-    return;
-  }
-
   const params = new URLSearchParams(location.search);
   const rowParam = params.get('row');
+
+  // Không row param → về danh sách
   if (!rowParam) { window.location.href = 'index.html'; return; }
 
   const spreadsheetId = localStorage.getItem(APP_CONFIG.STORAGE.SPREADSHEET_ID);
   const sheetName = localStorage.getItem(APP_CONFIG.STORAGE.SHEET_NAME);
   if (!spreadsheetId || !sheetName) { window.location.href = 'index.html'; return; }
 
+  // Thử dùng cache từ sessionStorage trước (index.html đã load, cùng tab)
+  // → không cần auth, không cần chờ GIS
+  const cached = sessionStorage.getItem(APP_CONFIG.STORAGE.CACHED_DATA);
+  if (cached) {
+    try {
+      const { headers, rows } = JSON.parse(cached);
+      const row = rows.find((r) => r._row === parseInt(rowParam));
+      if (row) {
+        const colMap = buildColMap(headers);
+        renderDetail(row, headers, colMap);
+        const folderId = colVal(row, colMap, 'DRIVE_FOLDER');
+        loadPhotos(folderId, document.getElementById('galleryGrid'));
+        if (folderId) {
+          DriveAPI.listPhotos(folderId).then(photos => {
+            if (photos.length > 0) {
+              const heroImg = document.getElementById('heroImg');
+              heroImg.src = DriveAPI.getThumbnailUrl(photos[0].id, 800);
+              heroImg.classList.remove('hidden');
+              document.getElementById('heroEmoji').style.display = 'none';
+            }
+          }).catch(() => {});
+        }
+        document.getElementById('btnAddPhoto').addEventListener('click', () => addPhoto(row, colMap, headers));
+        document.getElementById('lightbox').addEventListener('click', (e) => {
+          if (e.target === e.currentTarget) e.target.classList.add('hidden');
+        });
+        return; // Done — không cần auth hoặc API call
+      }
+    } catch (_) {}
+  }
+
+  // Cache không có hoặc không tìm thấy row → gọi API (cần auth)
+  let t = 0;
+  while (typeof google === 'undefined' && t++ < 20) await new Promise((r) => setTimeout(r, 200));
+  await Auth.init();
+
   try {
     const { headers, rows } = await SheetsAPI.getCachedRows(spreadsheetId, sheetName);
     const row = rows.find((r) => r._row === parseInt(rowParam));
-    if (!row) throw new Error('Không tìm thấy BĐS');
+    if (!row) throw new Error(`Không tìm thấy BĐS (row=${rowParam}). Có thể dữ liệu đã bị xóa.`);
 
     const colMap = buildColMap(headers);
     renderDetail(row, headers, colMap);
 
-    // Load photos
     const folderId = colVal(row, colMap, 'DRIVE_FOLDER');
-    const galleryGrid = document.getElementById('galleryGrid');
-    loadPhotos(folderId, galleryGrid);
-
-    // Load first photo as hero
+    loadPhotos(folderId, document.getElementById('galleryGrid'));
     if (folderId) {
       const photos = await DriveAPI.listPhotos(folderId).catch(() => []);
       if (photos.length > 0) {
@@ -369,17 +394,13 @@ async function initDetail() {
         document.getElementById('heroEmoji').style.display = 'none';
       }
     }
-
-    // Camera button
     document.getElementById('btnAddPhoto').addEventListener('click', () => addPhoto(row, colMap, headers));
-
-    // Lightbox click outside
     document.getElementById('lightbox').addEventListener('click', (e) => {
       if (e.target === e.currentTarget) e.target.classList.add('hidden');
     });
 
   } catch (err) {
-    console.error(err);
+    console.error('[Detail] Error:', err);
     document.getElementById('loadingState').innerHTML = `
       <div class="empty-state">
         <div class="empty-icon">❌</div>

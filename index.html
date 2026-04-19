@@ -48,7 +48,7 @@
 
     #propertiesList {
       padding: var(--space-3) var(--space-4);
-      padding-bottom: calc(var(--bottom-nav-height) + 80px);
+      padding-bottom: calc(var(--bottom-nav-height) + 160px);
       display: flex;
       flex-direction: column;
       gap: var(--space-3);
@@ -194,7 +194,7 @@
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
       padding: 0 var(--space-3);
-      padding-bottom: calc(var(--bottom-nav-height) + 80px);
+      padding-bottom: calc(var(--bottom-nav-height) + 160px);
     }
     .data-table {
       width: 100%; min-width: 900px;
@@ -240,32 +240,17 @@
 <body>
 
 <!-- ── Top Navigation ── -->
-<nav class="top-nav">
+<nav class="top-nav" style="justify-content: center;">
   <a href="index.html" class="nav-logo">
     <span class="logo-icon">🏠</span>
     <span>BĐS <span class="logo-text">Khảo Sát</span></span>
   </a>
-  <div class="nav-spacer"></div>
-
-  <button class="nav-btn" id="btnRefresh" title="Đồng bộ dữ liệu">
-    <span id="refreshIcon">🔄</span>
-  </button>
-
-  <button class="nav-btn" id="btnUser" title="Tài khoản">
-    <img class="nav-avatar hidden" id="userAvatar" src="" alt="">
-    <span id="userNameShort"></span>
-  </button>
 </nav>
 
-<!-- ── Sheet Info Bar ── -->
+<!-- ── Sheet Info Bar (chỉ hiện tên sheet) ── -->
 <div class="sheet-info-bar hidden" id="sheetInfoBar">
   <span>📊</span>
   <span class="sheet-name" id="sheetNameLabel">—</span>
-  <span>•</span>
-  <span id="sheetRowCount">—</span> bất động sản
-  <div style="flex:1"></div>
-  <button class="btn btn-ghost btn-sm" id="btnSetupCols" title="Gán cột dữ liệu" style="font-size:0.72rem">⚙️ Cột</button>
-  <button class="btn btn-ghost btn-sm" id="btnChangeSheet" style="font-size:0.72rem">Đổi Sheet</button>
 </div>
 
 <!-- ── Login Screen ── -->
@@ -315,15 +300,10 @@
     </div>
   </div>
 
-  <!-- List Header -->
+  <!-- List Header: count + sort + add column -->
   <div class="list-header">
     <span class="list-count" id="listCount">Đang tải…</span>
-    <div style="display:flex;align-items:center;gap:8px">
-      <div class="view-toggle" id="viewToggle">
-        <button data-view="card" title="Dạng thẻ">🃏</button>
-        <button data-view="table" class="active" title="Dạng bảng">📋</button>
-        <button data-view="refactor" title="Bảng (V2)">✨ V2</button>
-      </div>
+    <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
       <select class="sort-select" id="sortSelect">
         <option value="date-desc">🕐 Mới nhất</option>
         <option value="score-desc">⭐ Điểm cao</option>
@@ -331,17 +311,12 @@
         <option value="price-desc">💰 Giá giảm</option>
         <option value="area-desc">📐 Diện tích</option>
       </select>
+      <button class="btn btn-primary btn-sm" id="btnAddColFromHeader" style="font-size:0.75rem;padding:4px 10px;white-space:nowrap">➕ Thêm cột</button>
     </div>
   </div>
 
-  <!-- Card List -->
-  <div id="propertiesList" class="hidden"></div>
-
-  <!-- Table View -->
-  <div class="table-wrapper" id="tableView"></div>
-  
-  <!-- Refactor View (V2 Dynamic Table) -->
-  <div class="table-wrapper hidden" id="refactorView"></div>
+  <!-- V2 Table (duy nhất) -->
+  <div class="table-wrapper" id="refactorView"></div>
 
 <!-- ── V2 Add Column Modal ── -->
 <div class="modal-backdrop hidden" id="addColModal">
@@ -387,7 +362,7 @@
 </main>
 
 <!-- ── FAB ── -->
-<button class="fab hidden" id="fabAdd" title="Thêm BĐS mới">+</button>
+<button class="fab hidden" id="fabAdd" title="Thêm BĐS mới" onclick="window.location.href='form.html'" style="z-index: 9999; cursor: pointer;">+</button>
 
 <!-- ── Bottom Navigation ── -->
 <nav class="bottom-nav" id="bottomNav">
@@ -404,8 +379,11 @@
     <span>Thống kê</span>
   </a>
   <a href="#" class="bottom-nav-item" id="navAccount">
-    <span class="nav-icon">👤</span>
-    <span>Tài khoản</span>
+    <div style="position:relative; width:22px; height:22px; margin-bottom:2px; display:flex; align-items:center; justify-content:center;">
+       <span class="nav-icon" id="userAvatarFallback" style="font-size:1.3rem; position:absolute;">👤</span>
+       <img id="userAvatar" class="hidden" src="" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover;border:1px solid var(--accent);position:absolute;z-index:2;background:var(--bg-surface);">
+    </div>
+    <span id="userNameShort" style="max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Tài khoản</span>
   </a>
 </nav>
 
