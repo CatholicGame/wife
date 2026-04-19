@@ -14,6 +14,8 @@ const APP_CONFIG = {
     'https://www.googleapis.com/auth/spreadsheets',
     'https://www.googleapis.com/auth/drive.file',
     'https://www.googleapis.com/auth/drive.readonly',
+    'https://www.googleapis.com/auth/generative-language.retriever',
+    'https://www.googleapis.com/auth/documents',
     'openid',
     'profile',
     'email',
@@ -21,6 +23,10 @@ const APP_CONFIG = {
 
   // Google Picker API key (cũng lấy từ GCP Console → Credentials → API Key)
   PICKER_API_KEY: 'AIzaSyCkEJESzPsDlFTxsdSeJr1SgeXlxIZ80_M',
+
+  // Gemini AI API key (lấy từ https://aistudio.google.com/apikey)
+  // Có thể để trống ở đây và nhập qua giao diện Settings
+  GEMINI_API_KEY: '',
 
   // Drive folder name để lưu ảnh
   DRIVE_ROOT_FOLDER: 'BDS_Survey_Photos',

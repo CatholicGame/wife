@@ -298,11 +298,29 @@
       </div>
       <div class="form-group">
         <label class="form-label" style="font-size:0.75rem;color:var(--text-secondary);font-weight:400">Được lưu trên Google Drive ☁️</label>
-        
+
+        <!-- Folder picker -->
+        <div class="upload-picker-row">
+          <div class="upload-picker-label">📂 Folder</div>
+          <select class="form-control upload-picker-select" id="folderSelect">
+            <option value="">— Chọn folder —</option>
+          </select>
+          <button type="button" class="btn btn-secondary upload-picker-add" id="btnNewFolder" title="Tạo folder mới">+ Mới</button>
+        </div>
+
+        <!-- Category / price range -->
+        <div class="upload-picker-row">
+          <div class="upload-picker-label">🏷️ Nhóm giá</div>
+          <select class="form-control upload-picker-select" id="categorySelect">
+            <option value="">— Chọn nhóm —</option>
+          </select>
+          <button type="button" class="btn btn-secondary upload-picker-add" id="btnNewCategory" title="Thêm nhóm giá mới">+ Thêm</button>
+        </div>
+
         <!-- Nút tải ảnh -->
-        <div style="display:flex;gap:8px;margin-bottom:12px">
+        <div style="display:flex;gap:8px;margin-bottom:12px;margin-top:var(--space-3)">
           <input type="file" id="filePhotos" accept="image/*" multiple style="display:none">
-          <button type="button" class="btn btn-secondary" onclick="document.getElementById('filePhotos').click()" style="flex:1">
+          <button type="button" class="btn btn-secondary" id="btnPickPhotos" style="flex:1">
             <span style="font-size:1.1rem;margin-right:4px">🖼️</span> Chọn/Chụp ảnh
           </button>
         </div>
@@ -417,12 +435,12 @@
 <div class="toast-container" id="toastContainer"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="js/config.js?v=2330"></script>
-<script src="js/auth.js?v=2330"></script>
-<script src="js/sheets.js?v=2330"></script>
-<script src="js/drive.js?v=2355"></script>
-<script src="js/col-mapper.js?v=2330"></script>
-<script src="js/form.js?v=2355"></script>
+<script src="js/config.js?v=2360"></script>
+<script src="js/auth.js?v=2360"></script>
+<script src="js/sheets.js?v=2360"></script>
+<script src="js/drive.js?v=2360"></script>
+<script src="js/col-mapper.js?v=2360"></script>
+<script src="js/form.js?v=2360"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://apis.google.com/js/api.js" async defer></script>
 </body>

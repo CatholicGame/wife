@@ -218,32 +218,207 @@ function setupGPS() {
 }
 
 // ─── Hình ảnh (Google Drive) ──────────────────────────────────────────────────
+
+const CATEGORIES_KEY = 'bds_photo_categories';
+const DEFAULT_CATEGORIES = ['1-3 tỉ', '3-4 tỉ', '4-5 tỉ', '5-7 tỉ', '7-10 tỉ', '10+ tỉ'];
+
+function getCategories() {
+  try {
+    const saved = localStorage.getItem(CATEGORIES_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch (e) {}
+  return [...DEFAULT_CATEGORIES];
+}
+
+function saveCategories(cats) {
+  localStorage.setItem(CATEGORIES_KEY, JSON.stringify(cats));
+}
+
 function setupPhotos() {
   const fileInput = document.getElementById('filePhotos');
+  const btnPick = document.getElementById('btnPickPhotos');
+  const folderSelect = document.getElementById('folderSelect');
+  const categorySelect = document.getElementById('categorySelect');
+  const btnNewFolder = document.getElementById('btnNewFolder');
+  const btnNewCategory = document.getElementById('btnNewCategory');
+
   if (!fileInput) return;
 
+  // Populate category dropdown
+  populateCategories();
+
+  // Load folders from Drive
+  loadFolderList();
+
+  // Pick photos button → open file input
+  btnPick?.addEventListener('click', () => fileInput.click());
+
+  // When folder changes → load gallery from that folder
+  folderSelect?.addEventListener('change', async () => {
+    const folderId = folderSelect.value;
+    if (!folderId) return;
+    FormState.driveFolderId = folderId;
+    const idInput = document.getElementById('field_DRIVE_FOLDER');
+    if (idInput) idInput.value = folderId;
+
+    // Reset category → load gallery from parent folder
+    if (categorySelect) categorySelect.value = '';
+    await loadGallery(folderId);
+  });
+
+  // When category changes → find/create subfolder and load gallery
+  categorySelect?.addEventListener('change', async () => {
+    const cat = categorySelect.value;
+    const parentId = folderSelect?.value;
+    if (!cat || !parentId) return;
+
+    try {
+      showToast('Đang mở nhóm "' + cat + '"…', 'info', 2000);
+      const subFolderId = await DriveAPI.findOrCreateFolder(cat, parentId);
+      FormState.driveFolderId = subFolderId;
+      const idInput = document.getElementById('field_DRIVE_FOLDER');
+      if (idInput) idInput.value = subFolderId;
+      await loadGallery(subFolderId);
+    } catch (err) {
+      console.error('Category folder error:', err);
+      showToast('Lỗi mở nhóm: ' + err.message, 'error');
+    }
+  });
+
+  // Create new folder
+  btnNewFolder?.addEventListener('click', async () => {
+    const name = prompt('Tên folder mới:');
+    if (!name || !name.trim()) return;
+
+    try {
+      showToast('Đang tạo folder…', 'info', 2000);
+      const rootId = await DriveAPI.ensureRootFolder();
+      const newId = await DriveAPI.findOrCreateFolder(name.trim(), rootId);
+
+      // Add to dropdown & select it
+      const opt = document.createElement('option');
+      opt.value = newId;
+      opt.textContent = '📁 ' + name.trim();
+      folderSelect?.appendChild(opt);
+      if (folderSelect) folderSelect.value = newId;
+
+      FormState.driveFolderId = newId;
+      const idInput = document.getElementById('field_DRIVE_FOLDER');
+      if (idInput) idInput.value = newId;
+
+      showToast('Đã tạo folder "' + name.trim() + '" ✓', 'success');
+      await loadGallery(newId);
+    } catch (err) {
+      showToast('Lỗi tạo folder: ' + err.message, 'error');
+    }
+  });
+
+  // Create new category
+  btnNewCategory?.addEventListener('click', () => {
+    const name = prompt('Tên nhóm giá mới (VD: 5-7 tỉ):');
+    if (!name || !name.trim()) return;
+
+    const cats = getCategories();
+    if (cats.includes(name.trim())) {
+      showToast('Nhóm này đã tồn tại', 'warning');
+      return;
+    }
+    cats.push(name.trim());
+    saveCategories(cats);
+
+    // Add to dropdown & select
+    const opt = document.createElement('option');
+    opt.value = name.trim();
+    opt.textContent = '🏷️ ' + name.trim();
+    categorySelect?.appendChild(opt);
+    if (categorySelect) categorySelect.value = name.trim();
+
+    showToast('Đã thêm nhóm "' + name.trim() + '" ✓', 'success');
+
+    // Trigger change to create subfolder
+    categorySelect?.dispatchEvent(new Event('change'));
+  });
+
+  // File input change → upload
   fileInput.addEventListener('change', async (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
 
     try {
-      // Đảm bảo Form có Folder ID
+      // Ensure we have a target folder
       if (!FormState.driveFolderId) {
-        const addressLabel = document.getElementById('field_ADDRESS')?.value || 'Nhà_Mới_Chưa_Có_Địa_Chỉ';
-        FormState.driveFolderId = await DriveAPI.ensurePropertyFolder(addressLabel);
-        
-        // Lưu hidden input
-        const idInput = document.getElementById('field_DRIVE_FOLDER');
-        if (idInput) idInput.value = FormState.driveFolderId;
+        // Auto-create from address if no folder selected
+        if (folderSelect?.value) {
+          FormState.driveFolderId = folderSelect.value;
+        } else {
+          const addressLabel = document.getElementById('field_ADDRESS')?.value || 'Nhà_Mới';
+          FormState.driveFolderId = await DriveAPI.ensurePropertyFolder(addressLabel);
+          const idInput = document.getElementById('field_DRIVE_FOLDER');
+          if (idInput) idInput.value = FormState.driveFolderId;
+          // Refresh folder list to include the new folder
+          loadFolderList();
+        }
       }
 
-      await uploadPhotos(files, FormState.driveFolderId);
-      await loadGallery(FormState.driveFolderId);
+      // If category is selected, use category subfolder
+      const cat = categorySelect?.value;
+      let uploadFolderId = FormState.driveFolderId;
+      if (cat && folderSelect?.value) {
+        uploadFolderId = await DriveAPI.findOrCreateFolder(cat, folderSelect.value);
+        FormState.driveFolderId = uploadFolderId;
+      }
+
+      await uploadPhotos(files, uploadFolderId);
+      await loadGallery(uploadFolderId);
+
+      // Reset file input
+      fileInput.value = '';
     } catch (err) {
       console.error(err);
       showToast('Lỗi Upload: ' + err.message, 'error');
     }
   });
+}
+
+function populateCategories() {
+  const sel = document.getElementById('categorySelect');
+  if (!sel) return;
+
+  const cats = getCategories();
+  // Keep the default "— Chọn nhóm —" option
+  cats.forEach(cat => {
+    const opt = document.createElement('option');
+    opt.value = cat;
+    opt.textContent = '🏷️ ' + cat;
+    sel.appendChild(opt);
+  });
+}
+
+async function loadFolderList() {
+  const sel = document.getElementById('folderSelect');
+  if (!sel) return;
+
+  try {
+    const rootId = await DriveAPI.ensureRootFolder();
+    const folders = await DriveAPI.listSubFolders(rootId);
+
+    // Clear existing options (keep first)
+    while (sel.options.length > 1) sel.remove(1);
+
+    folders.forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.id;
+      opt.textContent = '📁 ' + f.name;
+      sel.appendChild(opt);
+    });
+
+    // Auto-select if form has a saved folder ID
+    if (FormState.driveFolderId) {
+      sel.value = FormState.driveFolderId;
+    }
+  } catch (err) {
+    console.error('Load folders error:', err);
+  }
 }
 
 async function uploadPhotos(files, folderId) {

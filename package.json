@@ -1,0 +1,9 @@
+{
+  "name": "survey-app",
+  "version": "1.0.0",
+  "description": "Real Estate Survey Application",
+  "scripts": {
+    "dev": "npx -y serve@latest -l 3000 -s .",
+    "start": "npx -y serve@latest -l 3000 -s ."
+  }
+}

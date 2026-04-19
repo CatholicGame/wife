@@ -340,73 +340,50 @@
   <!-- Table View -->
   <div class="table-wrapper" id="tableView"></div>
   
-  <!-- Refactor View (Static Demo Table for New DB Schema) -->
-  <div class="table-wrapper hidden" id="refactorView">
-    <table class="data-table">
-      <thead>
-        <tr>
-          <!-- Nhóm 1: Hệ thống & Định danh -->
-          <th style="background:var(--bg-surface);color:var(--text-secondary)">STT</th>
-          <th style="background:var(--bg-surface)">Ngày khảo sát</th>
-          <th style="background:var(--bg-surface)">Tình trạng</th>
-          <th style="background:var(--bg-surface)">Loại BĐS</th>
-          <!-- Nhóm 2: Vị trí (Maps Auto-fill) -->
-          <th style="background:rgba(0,212,170,0.1)">Link Map</th>
-          <th style="background:rgba(0,212,170,0.1)">Địa chỉ</th>
-          <th style="background:rgba(0,212,170,0.1)">Quận/Huyện</th>
-          <!-- Nhóm 3: Thông số cốt lõi (Specs) -->
-          <th style="background:rgba(245,166,35,0.1)">Giá (Tỷ)</th>
-          <th style="background:rgba(245,166,35,0.1)">DT (m²)</th>
-          <th style="background:rgba(245,166,35,0.1)">Mặt tiền (m)</th>
-          <th style="background:rgba(245,166,35,0.1)">Đường (m)</th>
-          <th style="background:rgba(245,166,35,0.1)">Số tầng</th>
-          <th style="background:rgba(245,166,35,0.1)">PN</th>
-          <th style="background:rgba(245,166,35,0.1)">Hướng</th>
-          <th style="background:rgba(245,166,35,0.1)">Pháp lý</th>
-          <!-- Nhóm 4: Đánh giá & Phân tích -->
-          <th style="background:rgba(180,100,255,0.1)">Ưu điểm</th>
-          <th style="background:rgba(180,100,255,0.1)">Nhược điểm</th>
-          <th style="background:rgba(180,100,255,0.1)">Nhận xét chung</th>
-          <th style="background:rgba(180,100,255,0.1)">Tổng điểm</th>
-          <!-- Nhóm 5: Nguồn & Liên hệ -->
-          <th style="background:rgba(231,76,60,0.1)">Đầu chủ</th>
-          <th style="background:rgba(231,76,60,0.1)">SĐT</th>
-          <th style="background:rgba(231,76,60,0.1)">Đã đăng tin</th>
-        </tr>
-      </thead>
-      <tbody>
-        <!-- Sample Row -->
-        <tr>
-          <td class="col-stt">1</td>
-          <td>18/04/2026</td>
-          <td><span class="badge" style="background:rgba(0,212,170,0.2);color:var(--green)">✅ Đã chốt</span></td>
-          <td><span class="badge badge-accent">Nhà tầng</span></td>
-          
-          <td><a href="#" style="color:var(--accent);text-decoration:none">🗺️ short-link</a></td>
-          <td class="col-addr">691 Bát Khối</td>
-          <td>Long Biên</td>
-          
-          <td class="col-price">15.2</td>
-          <td>95</td>
-          <td>7.6</td>
-          <td>5</td>
-          <td>2</td>
-          <td>1</td>
-          <td>Đông Nam</td>
-          <td>Sổ đỏ</td>
-          
-          <td>Nhà mặt phố, lô góc ngay đường...</td>
-          <td>Cột điện góc nhà - Quy hoạch...</td>
-          <td>(Trống)</td>
-          <td class="col-score"><span class="score-badge score-high" style="font-size:0.75rem;padding:2px 8px">4.2</span></td>
-          
-          <td>anh Minh</td>
-          <td>0982259***</td>
-          <td>(Trống)</td>
-        </tr>
-      </tbody>
-    </table>
+  <!-- Refactor View (V2 Dynamic Table) -->
+  <div class="table-wrapper hidden" id="refactorView"></div>
+
+<!-- ── V2 Add Column Modal ── -->
+<div class="modal-backdrop hidden" id="addColModal">
+  <div class="modal-sheet" style="max-width:420px">
+    <div class="modal-handle"></div>
+    <h3 style="margin-bottom:var(--space-2);display:flex;align-items:center;gap:var(--space-2)">
+      <span>➕</span> Thêm cột mới
+    </h3>
+    <p class="text-muted text-small" style="margin-bottom:var(--space-5)">Thêm một cột tùy chỉnh vào bảng V2. Cột sẽ được lưu trên trình duyệt.</p>
+    <div class="form-group" style="margin-bottom:var(--space-4)">
+      <label class="form-label">Tên cột <span class="required">*</span></label>
+      <input type="text" class="form-control" id="newColName" placeholder="VD: Ghi chú thêm, Hoa hồng…" autocomplete="off">
+    </div>
+    <div class="form-group" style="margin-bottom:var(--space-4)">
+      <label class="form-label">Nhóm màu</label>
+      <select class="form-control" id="newColGroup">
+        <option value="default">⬜ Mặc định</option>
+        <option value="green">🟢 Vị trí (xanh lá)</option>
+        <option value="orange">🟠 Thông số (cam)</option>
+        <option value="purple">🟣 Đánh giá (tím)</option>
+        <option value="red">🔴 Liên hệ (đỏ)</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:var(--space-3)">
+      <button class="btn btn-ghost btn-full" id="cancelAddCol">Hủy</button>
+      <button class="btn btn-primary btn-full" id="confirmAddCol">Thêm cột</button>
+    </div>
   </div>
+</div>
+
+<!-- ── V2 Confirm Delete Modal ── -->
+<div class="confirm-dialog-backdrop hidden" id="confirmDeleteCol">
+  <div class="confirm-dialog">
+    <div class="confirm-dialog-icon">🗑️</div>
+    <h3 class="confirm-dialog-title">Xóa cột này?</h3>
+    <p class="confirm-dialog-msg" id="confirmDeleteMsg">Bạn có chắc muốn xóa cột này không?</p>
+    <div class="confirm-dialog-actions">
+      <button class="btn btn-ghost" id="cancelDeleteCol">Hủy</button>
+      <button class="btn btn-danger" id="execDeleteCol">Xóa cột</button>
+    </div>
+  </div>
+</div>
 </main>
 
 <!-- ── FAB ── -->
@@ -451,10 +428,66 @@
   </div>
 </div>
 
+<!-- ── AI Chat Panel ── -->
+<button class="ai-fab" id="aiFabBtn" title="Trợ lý AI">
+  <span class="ai-fab-icon">✨</span>
+</button>
+
+<div class="ai-panel hidden" id="aiPanel">
+  <div class="ai-panel-header">
+    <div class="ai-panel-title" style="flex:1; display:flex; align-items:center; gap:8px;">
+      <span>✨</span>
+      <select id="aiSessionSelect" class="ai-session-select" title="Chọn phiên chat"></select>
+      <button class="ai-header-btn" id="aiNewChatBtn" title="Tạo chat mới">➕</button>
+    </div>
+    <div style="display:flex;gap:4px">
+      <button class="ai-header-btn" id="aiExportDocsBtn" title="Lưu vào Google Docs" style="font-size:0.8rem; padding: 0 4px; display:none;">📄 Docs</button>
+      <button class="ai-header-btn" id="aiSettingsBtn" title="Cài đặt API key">⚙️</button>
+      <button class="ai-header-btn" id="aiCloseBtn" title="Đóng">✕</button>
+    </div>
+  </div>
+
+  <!-- API Key Setup (hiện khi chưa có key) -->
+  <div class="ai-setup" id="aiSetup">
+    <div class="ai-setup-icon">🔑</div>
+    <h3>Kết nối Gemini AI</h3>
+    <p>Nhập API key từ <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--accent)">Google AI Studio</a> (miễn phí)</p>
+    <div style="display:flex;gap:var(--space-2);margin-top:var(--space-4)">
+      <input type="password" class="form-control" id="aiKeyInput" placeholder="Dán API key tại đây…" style="flex:1">
+      <button class="btn btn-primary" id="aiSaveKey">Lưu</button>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  <div class="ai-messages" id="aiMessages">
+    <div class="ai-welcome">
+      <div style="font-size:2rem;margin-bottom:var(--space-3)">🏠✨</div>
+      <p style="font-weight:600;margin-bottom:var(--space-2)">Xin chào! Tôi là trợ lý AI BĐS.</p>
+      <p class="text-muted text-small">Hỏi tôi về dữ liệu khảo sát: tóm tắt, so sánh, phân tích giá, tìm BĐS tiềm năng…</p>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="ai-quick-actions" id="aiQuickActions">
+    <button class="ai-chip" data-prompt="Tóm tắt tất cả BĐS đã khảo sát">📋 Tóm tắt</button>
+    <button class="ai-chip" data-prompt="BĐS nào có tiềm năng nhất? Giải thích tại sao">⭐ Tiềm năng</button>
+    <button class="ai-chip" data-prompt="So sánh giá/m² giữa các BĐS">💰 So sánh giá</button>
+    <button class="ai-chip" data-prompt="Phân tích ưu nhược điểm của từng BĐS">📊 Phân tích</button>
+  </div>
+
+  <!-- Input -->
+  <div class="ai-input-bar">
+    <input type="text" class="ai-input" id="aiInput" placeholder="Hỏi về BĐS…" autocomplete="off">
+    <button class="ai-send-btn" id="aiSendBtn" title="Gửi">
+      <span id="aiSendIcon">➤</span>
+    </button>
+  </div>
+</div>
+
 <!-- ── Scripts ── -->
 <script>
 // Force reload nếu JS cũ đang chạy
-const _CV = '2350';
+const _CV = '2360';
 if (localStorage.getItem('_cv') !== _CV) {
   localStorage.setItem('_cv', _CV);
   // Xóa cache cũ và reload
@@ -462,12 +495,15 @@ if (localStorage.getItem('_cv') !== _CV) {
   window.location.reload(true);
 }
 </script>
-<script src="js/config.js?v=2330"></script>
-<script src="js/auth.js?v=2330"></script>
-<script src="js/sheets.js?v=2330"></script>
-<script src="js/drive.js?v=2330"></script>
-<script src="js/col-mapper.js?v=2330"></script>
-<script src="js/list.js?v=2350"></script>
+<script src="js/config.js?v=2360"></script>
+<script src="js/auth.js?v=2360"></script>
+<script src="js/stats.js?v=2360"></script>
+<script src="js/docs.js?v=2360"></script>
+<script src="js/gemini.js?v=2360"></script>
+<script src="js/sheets.js?v=2360"></script>
+<script src="js/drive.js?v=2360"></script>
+<script src="js/col-mapper.js?v=2360"></script>
+<script src="js/list.js?v=2360"></script>
 
 <!-- Google Identity Services -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>

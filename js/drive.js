@@ -8,8 +8,9 @@ const DriveAPI = (() => {
   const DRIVE_BASE = 'https://www.googleapis.com/drive/v3';
   const UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3';
 
-  async function authHeaders() {
-    const token = await Auth.getToken();
+  function authHeaders() {
+    const token = Auth.getToken();
+    if (!token) throw new Error('Chưa đăng nhập hoặc token đã hết hạn.');
     return { Authorization: `Bearer ${token}` };
   }
 
@@ -65,6 +66,20 @@ const DriveAPI = (() => {
     // Folder name: truncate + sanitize
     const folderName = String(propertyLabel).slice(0, 50).replace(/[/\\?*:|"<>]/g, '_');
     return await findOrCreateFolder(folderName, rootId);
+  }
+
+  /**
+   * Liệt kê tất cả subfolder trong parentId
+   * Returns: [{ id, name }]
+   */
+  async function listSubFolders(parentId) {
+    if (!parentId) return [];
+    const hdrs = await authHeaders();
+    const q = encodeURIComponent(`'${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+    const r = await fetch(`${DRIVE_BASE}/files?q=${q}&fields=files(id,name)&orderBy=name`, { headers: hdrs });
+    if (!r.ok) return [];
+    const data = await r.json();
+    return data.files || [];
   }
 
   // ─── Upload ──────────────────────────────────────────────────────────────────
@@ -310,6 +325,7 @@ const DriveAPI = (() => {
     findOrCreateFolder,
     ensureRootFolder,
     ensurePropertyFolder,
+    listSubFolders,
     uploadPhoto,
     listPhotos,
     deleteFile,

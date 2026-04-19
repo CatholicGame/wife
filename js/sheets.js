@@ -7,8 +7,9 @@
 const SheetsAPI = (() => {
   const BASE = 'https://sheets.googleapis.com/v4/spreadsheets';
 
-  async function authHeaders() {
-    const token = await Auth.getToken();
+  function authHeaders() {
+    const token = Auth.getToken();
+    if (!token) throw new Error('Chưa đăng nhập hoặc token đã hết hạn.');
     return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
   }
 
@@ -234,6 +235,56 @@ const SheetsAPI = (() => {
     return result;
   }
 
+  /**
+   * Thêm 1 cột mới vào header row (cột tiếp theo chưa có giá trị)
+   * Trả về: { colIndex, colLetter }
+   */
+  async function addColumnHeader(spreadsheetId, sheetName, columnName) {
+    const hdrs = await authHeaders();
+
+    // Wrap sheet name in single quotes (cần thiết khi tên sheet có dấu/khoảng trắng)
+    const quotedSheet = `'${sheetName.replace(/'/g, "''")}'`;
+
+    // Đọc 2 hàng đầu để detect header row (giống getAllRows)
+    const range = encodeURIComponent(`${quotedSheet}!1:2`);
+    const r = await fetch(`${BASE}/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`, { headers: hdrs });
+    if (!r.ok) {
+      const errBody = await r.text();
+      console.error('addColumnHeader – đọc headers thất bại:', errBody);
+      throw new Error(`Không đọc được headers: ${r.status}`);
+    }
+    const data = await r.json();
+    const rows = data.values || [];
+
+    // Auto-detect header row
+    let headerRowIdx = 0;
+    if (rows.length > 0) {
+      const row0NonEmpty = (rows[0] || []).filter(v => v && String(v).trim()).length;
+      if (row0NonEmpty < 5 && rows.length > 1) headerRowIdx = 1;
+    }
+
+    const headerRow = rows[headerRowIdx] || [];
+    // Tìm cột tiếp theo trống
+    const newColIndex = headerRow.length;
+    const colLetter = colIndexToLetter(newColIndex);
+    const sheetRow = headerRowIdx + 1; // 1-based
+
+    console.log(`📝 Thêm cột "${columnName}" tại ${colLetter}${sheetRow} (colIndex=${newColIndex})`);
+
+    // Ghi tên cột vào ô header
+    const cellRange = encodeURIComponent(`${quotedSheet}!${colLetter}${sheetRow}`);
+    const url = `${BASE}/${spreadsheetId}/values/${cellRange}?valueInputOption=USER_ENTERED`;
+    const body = { values: [[columnName]] };
+    const wr = await fetch(url, { method: 'PUT', headers: hdrs, body: JSON.stringify(body) });
+    if (!wr.ok) {
+      const errBody = await wr.text();
+      console.error('addColumnHeader – ghi cột thất bại:', errBody);
+      throw new Error(`Lỗi thêm cột: ${r.status} – ${errBody}`);
+    }
+
+    return { colIndex: newColIndex, colLetter };
+  }
+
   function invalidateCache() {
     sessionStorage.removeItem(APP_CONFIG.STORAGE.CACHED_DATA);
     sessionStorage.removeItem(APP_CONFIG.STORAGE.CACHE_TIME);
@@ -251,6 +302,7 @@ const SheetsAPI = (() => {
     getSheetId,
     getCachedRows,
     invalidateCache,
+    addColumnHeader,
     colIndexToLetter,
   };
 })();

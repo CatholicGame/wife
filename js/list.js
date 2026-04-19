@@ -247,7 +247,7 @@ function renderList() {
   } else if (State.viewMode === 'refactor') {
     if (cardContainer) cardContainer.classList.add('hidden');
     if (tableContainer) tableContainer.classList.add('hidden');
-    if (refactorContainer) refactorContainer.classList.remove('hidden');
+    if (refactorContainer) { refactorContainer.classList.remove('hidden'); renderV2Table(); }
   } else {
     if (tableContainer) tableContainer.classList.add('hidden');
     if (refactorContainer) refactorContainer.classList.add('hidden');
@@ -348,9 +348,215 @@ function renderTable() {
     const rowNum = parseInt(target.dataset.rownum);
     const rowObj = window._rowMap[rowNum];
     if (!rowObj) return;
-    localStorage.setItem('_rowData', JSON.stringify(rowObj));
-    window.location.href = 'form.html';
+    window.location.href = 'detail.html?row=' + rowNum;
   });
+}
+
+// ─── V2 Table (Refactor View) ─────────────────────────────────────────────────
+const V2_COLS_KEY = 'bds_v2_columns';
+
+// Default V2 columns blueprint
+const V2_DEFAULT_COLS = [
+  { id: 'stt',       label: 'STT',            group: 'default',  system: true },
+  { id: 'date',      label: 'Ngày khảo sát',  group: 'default',  knownKey: 'DATE' },
+  { id: 'status',    label: 'Tình trạng',     group: 'default',  knownKey: 'STATUS' },
+  { id: 'type',      label: 'Loại BĐS',      group: 'default',  knownKey: 'TYPE' },
+  { id: 'map',       label: 'Link Map',       group: 'green',    knownKey: 'MAPS_LINK' },
+  { id: 'address',   label: 'Địa chỉ',       group: 'green',    knownKey: 'ADDRESS' },
+  { id: 'district',  label: 'Quận/Huyện',     group: 'green',    knownKey: 'DISTRICT' },
+  { id: 'price',     label: 'Giá (Tỷ)',      group: 'orange',   knownKey: 'PRICE' },
+  { id: 'area',      label: 'DT (m²)',        group: 'orange',   knownKey: 'AREA' },
+  { id: 'front',     label: 'Mặt tiền (m)',   group: 'orange',   knownKey: 'FRONT' },
+  { id: 'road',      label: 'Đường (m)',      group: 'orange',   knownKey: 'ROAD' },
+  { id: 'floors',    label: 'Số tầng',        group: 'orange',   knownKey: 'FLOORS' },
+  { id: 'bedrooms',  label: 'PN',             group: 'orange',   knownKey: 'BEDROOMS' },
+  { id: 'dir',       label: 'Hướng',          group: 'orange',   knownKey: 'DIR' },
+  { id: 'legal',     label: 'Pháp lý',       group: 'orange',   knownKey: 'LEGAL' },
+  { id: 'pros',      label: 'Ưu điểm',       group: 'purple',   knownKey: 'PROS' },
+  { id: 'cons',      label: 'Nhược điểm',    group: 'purple',   knownKey: 'CONS' },
+  { id: 'notes',     label: 'Nhận xét chung', group: 'purple',   knownKey: 'NOTES' },
+  { id: 'score',     label: 'Tổng điểm',     group: 'purple',   knownKey: 'SCORE' },
+  { id: 'owner',     label: 'Đầu chủ',       group: 'red',      knownKey: 'OWNER' },
+  { id: 'phone',     label: 'SĐT',            group: 'red',      knownKey: 'PHONE' },
+];
+
+const V2_GROUP_BG = {
+  default: 'var(--bg-surface)',
+  green:   'rgba(0,212,170,0.1)',
+  orange:  'rgba(245,166,35,0.1)',
+  purple:  'rgba(180,100,255,0.1)',
+  red:     'rgba(231,76,60,0.1)',
+};
+
+function getV2Columns() {
+  try {
+    const saved = localStorage.getItem(V2_COLS_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch (e) {}
+  return [...V2_DEFAULT_COLS];
+}
+
+function saveV2Columns(cols) {
+  localStorage.setItem(V2_COLS_KEY, JSON.stringify(cols));
+}
+
+function renderV2Table() {
+  const container = document.getElementById('refactorView');
+  if (!container) return;
+
+  const cols = getV2Columns();
+  const rows = State.filtered;
+
+  // Build row map for click navigation
+  if (!window._rowMap) window._rowMap = {};
+  rows.forEach(row => { window._rowMap[row._row] = row; });
+
+  // Toolbar
+  const toolbar = `
+    <div class="v2-toolbar">
+      <span class="v2-toolbar-title">✨ V2 • ${cols.length} cột</span>
+      <button class="v2-add-col-btn" id="v2BtnAddCol">➕ Thêm cột</button>
+    </div>
+  `;
+
+  // Build header
+  const thCells = cols.map((col, i) => {
+    const bg = V2_GROUP_BG[col.group] || V2_GROUP_BG.default;
+    const deleteBtn = col.system
+      ? ''
+      : '<button class="v2-col-delete" data-col-idx="' + i + '" title="Xóa cột">✕</button>';
+    return '<th style="background:' + bg + '"><div class="v2-th-wrap"><span>' + col.label + '</span>' + deleteBtn + '</div></th>';
+  }).join('');
+
+  // Build body
+  const bodyRows = rows.map((row, rowIdx) => {
+    const cells = cols.map(col => {
+      if (col.system && col.id === 'stt') {
+        return '<td class="col-stt">' + (rowIdx + 1) + '</td>';
+      }
+
+      let val = '';
+      if (col.knownKey) {
+        val = colVal(row, col.knownKey);
+      } else if (col.headerName) {
+        val = row[col.headerName] || '';
+      }
+
+      // Format special columns
+      if (col.knownKey === 'PRICE' && val) val = formatPrice(val);
+      if (col.knownKey === 'PRICE_M2' && val) val = formatPriceM2(val);
+      if (col.knownKey === 'SCORE' && val) {
+        const n = parseFloat(val);
+        val = (!isNaN(n) && n > 0) ? '<span class="score-badge ' + getScoreClass(val) + '" style="font-size:0.75rem;padding:2px 8px">' + n.toFixed(1) + '</span>' : '';
+      }
+      if (col.knownKey === 'TYPE' && val) val = '<span class="badge badge-accent" style="font-size:0.68rem">' + val + '</span>';
+      if (col.knownKey === 'STATUS' && val) {
+        const statusColors = { 'Tiềm năng': 'badge-yellow', 'Đã chốt': 'badge-green', 'Đang xem xét': 'badge-blue', 'Bỏ qua': 'badge-red', 'Đã khảo sát': 'badge-accent' };
+        const cls = statusColors[val] || 'badge-accent';
+        val = '<span class="badge ' + cls + '">' + val + '</span>';
+      }
+      if (col.knownKey === 'MAPS_LINK' && val) {
+        const short = val.length > 25 ? val.substring(0, 25) + '…' : val;
+        return '<td><a href="' + val + '" target="_blank" style="color:var(--accent);text-decoration:none;font-size:0.75rem" title="' + val + '">🗺️ ' + short + '</a></td>';
+      }
+      if (col.knownKey === 'ADDRESS') {
+        return '<td class="col-addr" style="color:var(--accent);font-weight:700;cursor:pointer" data-v2row="' + row._row + '">' + (val || '(xem)') + '</td>';
+      }
+      if (col.knownKey === 'PRICE') {
+        return '<td class="col-price">' + val + '</td>';
+      }
+
+      return '<td>' + (val || '') + '</td>';
+    }).join('');
+    return '<tr data-v2row="' + row._row + '" style="cursor:pointer">' + cells + '</tr>';
+  }).join('');
+
+  container.innerHTML = toolbar +
+    '<table class="data-table">' +
+    '<thead><tr>' + thCells + '</tr></thead>' +
+    '<tbody>' + bodyRows + '</tbody>' +
+    '</table>';
+
+  // ── Events ──
+  // Add column button
+  container.querySelector('#v2BtnAddCol')?.addEventListener('click', () => {
+    document.getElementById('newColName').value = '';
+    document.getElementById('newColGroup').value = 'default';
+    document.getElementById('addColModal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('newColName').focus(), 100);
+  });
+
+  // Delete column buttons
+  container.querySelectorAll('.v2-col-delete').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = parseInt(btn.dataset.colIdx);
+      const col = cols[idx];
+      if (!col) return;
+      v2RequestDeleteColumn(idx, col.label);
+    });
+  });
+
+  // Row click -> open form
+  container.querySelector('table')?.addEventListener('click', (e) => {
+    const td = e.target.closest('[data-v2row]');
+    if (!td) return;
+    if (e.target.closest('.v2-col-delete') || e.target.closest('a')) return;
+    const rowNum = parseInt(td.dataset.v2row || td.closest('tr')?.dataset.v2row);
+    if (rowNum) {
+      window.location.href = 'detail.html?row=' + rowNum;
+    }
+  });
+}
+
+// ── V2: Delete column with custom confirm ─────────
+let _v2PendingDeleteIdx = null;
+
+function v2RequestDeleteColumn(idx, colLabel) {
+  _v2PendingDeleteIdx = idx;
+  const msgEl = document.getElementById('confirmDeleteMsg');
+  if (msgEl) msgEl.innerHTML = 'Cột <strong style="color:var(--accent)">\u201C' + colLabel + '\u201D</strong> sẽ bị xóa khỏi bảng V2.<br>Thao tác này không ảnh hưởng đến Google Sheet.';
+  document.getElementById('confirmDeleteCol').classList.remove('hidden');
+}
+
+function v2ExecuteDeleteColumn() {
+  if (_v2PendingDeleteIdx === null) return;
+  const cols = getV2Columns();
+  const removed = cols.splice(_v2PendingDeleteIdx, 1);
+  saveV2Columns(cols);
+  _v2PendingDeleteIdx = null;
+  document.getElementById('confirmDeleteCol').classList.add('hidden');
+  showToast('Đã xóa cột "' + (removed[0]?.label || '') + '"', 'success');
+  renderV2Table();
+}
+
+async function v2AddColumn(name, group) {
+  const spreadsheetId = localStorage.getItem(APP_CONFIG.STORAGE.SPREADSHEET_ID);
+  const sheetName = localStorage.getItem(APP_CONFIG.STORAGE.SHEET_NAME);
+
+  // Thêm cột vào Google Sheet trước
+  if (spreadsheetId && sheetName) {
+    try {
+      showToast('Đang thêm cột vào Google Sheet…', 'info', 2000);
+      await SheetsAPI.addColumnHeader(spreadsheetId, sheetName, name);
+    } catch (err) {
+      console.error('Lỗi thêm cột vào Sheet:', err);
+      showToast('Lỗi thêm cột vào Sheet: ' + err.message, 'error');
+      return;
+    }
+  }
+
+  // Lưu vào V2 config với headerName để map dữ liệu
+  const cols = getV2Columns();
+  const id = 'custom_' + Date.now();
+  cols.push({ id, label: name, group: group || 'default', custom: true, headerName: name });
+  saveV2Columns(cols);
+
+  showToast('Đã thêm cột "' + name + '" vào Sheet ✓', 'success');
+
+  // Reload data từ Sheet để cập nhật headers mới
+  SheetsAPI.invalidateCache();
+  await loadData(true);
 }
 
 // ─── View Toggle ──────────────────────────────────────────────────────────────
@@ -418,9 +624,9 @@ function openColMapper() {
   const rows = State.rows || State.allRows || [];
   const colMap = State.colMap || {};
 
-  // Nếu chưa có headers → reload trước rồi mở
+  // Nếu chưa có headers → sheet trống
   if (headers.length === 0) {
-    loadData(true).then(() => openColMapper());
+    showToast('Sheet hiện trạng đăng trống hoặc chưa có cột dữ liệu (hàng 1). Vui lòng thêm cột vào Sheet!', 'error');
     return;
   }
 
@@ -491,6 +697,9 @@ function showLoginScreen() {
   document.getElementById('mainContent').classList.add('hidden');
   document.getElementById('fabAdd').classList.add('hidden');
   document.getElementById('sheetInfoBar').classList.add('hidden');
+  
+  document.getElementById('aiFabBtn')?.classList.add('hidden');
+  document.getElementById('aiPanel')?.classList.add('hidden');
 }
 
 function showConnectBanner() {
@@ -498,6 +707,9 @@ function showConnectBanner() {
   document.getElementById('connectBanner').classList.remove('hidden');
   document.getElementById('mainContent').classList.add('hidden');
   document.getElementById('fabAdd').classList.add('hidden');
+  
+  document.getElementById('aiFabBtn')?.classList.add('hidden');
+  document.getElementById('aiPanel')?.classList.add('hidden');
 
   const userInfo = Auth.getUserInfo();
   if (userInfo) {
@@ -515,6 +727,8 @@ function showUI() {
   document.getElementById('mainContent').classList.remove('hidden');
   document.getElementById('fabAdd').classList.remove('hidden');
   document.getElementById('sheetInfoBar').classList.remove('hidden');
+  
+  document.getElementById('aiFabBtn')?.classList.remove('hidden');
 
   const sheetName = localStorage.getItem(APP_CONFIG.STORAGE.SPREADSHEET_NAME);
   if (sheetName) document.getElementById('sheetNameLabel').textContent = sheetName;
@@ -647,18 +861,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Sign in
   document.getElementById('btnSignIn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btnSignIn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Đang đăng nhập...'; }
     try {
-      await new Promise((resolve) => {
-        let t = 0;
-        const wait = () => { if (typeof google !== 'undefined') resolve(); else if (t++ < 30) setTimeout(wait, 200); };
-        wait();
-      });
+      // Chờ GIS sẵn sàng
+      let t = 0;
+      while (typeof google === 'undefined' && t++ < 30) {
+        await new Promise((r) => setTimeout(r, 200));
+      }
       await Auth.init();
-      await Auth.requestToken();
+      await Auth.signIn();   // ← mở popup Google 1 lần duy nhất
       const spreadsheetId = localStorage.getItem(APP_CONFIG.STORAGE.SPREADSHEET_ID);
       if (spreadsheetId) { showUI(); await loadData(); }
       else showConnectBanner();
-    } catch (e) { showToast('Đăng nhập thất bại: ' + e.message, 'error'); }
+    } catch (e) {
+      showToast('Đăng nhập thất bại: ' + (e.message || 'Vui lòng thử lại'), 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google"> Đăng nhập với Google'; }
+    }
   });
 
   // Sign out
@@ -681,6 +901,38 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast('Tính năng tạo sheet mới sẽ được bổ sung sớm', 'info');
   });
 
+  // ── V2 Column Modals ──
+  // Add column modal
+  document.getElementById('confirmAddCol')?.addEventListener('click', () => {
+    const name = document.getElementById('newColName').value.trim();
+    if (!name) { showToast('Vui lòng nhập tên cột', 'warning'); return; }
+    const group = document.getElementById('newColGroup').value;
+    document.getElementById('addColModal').classList.add('hidden');
+    v2AddColumn(name, group);
+  });
+  document.getElementById('cancelAddCol')?.addEventListener('click', () => {
+    document.getElementById('addColModal').classList.add('hidden');
+  });
+  document.getElementById('addColModal')?.addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) document.getElementById('addColModal').classList.add('hidden');
+  });
+
+  // Delete column confirm
+  document.getElementById('execDeleteCol')?.addEventListener('click', () => v2ExecuteDeleteColumn());
+  document.getElementById('cancelDeleteCol')?.addEventListener('click', () => {
+    _v2PendingDeleteIdx = null;
+    document.getElementById('confirmDeleteCol').classList.add('hidden');
+  });
+  document.getElementById('confirmDeleteCol')?.addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) {
+      _v2PendingDeleteIdx = null;
+      document.getElementById('confirmDeleteCol').classList.add('hidden');
+    }
+  });
+
+  // ── AI Chat Panel ──
+  initAIChat();
+
   init();
 });
 
@@ -689,4 +941,237 @@ function openAccountModal() {
 }
 function closeModal() {
   document.getElementById('accountModal')?.classList.add('hidden');
+}
+
+// ─── AI Chat ──────────────────────────────────────────────────────────────────
+function initAIChat() {
+  const fab = document.getElementById('aiFabBtn');
+  const panel = document.getElementById('aiPanel');
+  const closeBtn = document.getElementById('aiCloseBtn');
+  const input = document.getElementById('aiInput');
+  const sendBtn = document.getElementById('aiSendBtn');
+  const messagesEl = document.getElementById('aiMessages');
+  const setupEl = document.getElementById('aiSetup');
+  const quickEl = document.getElementById('aiQuickActions');
+  
+  const sessionSelect = document.getElementById('aiSessionSelect');
+  const newChatBtn = document.getElementById('aiNewChatBtn');
+  const exportDocsBtn = document.getElementById('aiExportDocsBtn');
+
+  if (!fab || !panel) return;
+
+  // Render chat history
+  function renderHistory() {
+    if (!messagesEl) return;
+    messagesEl.innerHTML = '';
+    const history = GeminiAI.getChatHistory();
+    if (history.length === 0) {
+      messagesEl.innerHTML = `
+        <div class="ai-welcome">
+          <div style="font-size:2rem;margin-bottom:var(--space-3)">🏠✨</div>
+          <p style="font-weight:600;margin-bottom:var(--space-2)">Xin chào! Tôi là trợ lý AI BĐS.</p>
+          <p class="text-muted text-small">Hỏi tôi về dữ liệu khảo sát: tóm tắt, so sánh, phân tích giá, tìm BĐS tiềm năng…</p>
+        </div>`;
+    } else {
+      for (const msg of history) {
+         if (msg.role === 'user') appendMessage('user', msg.parts[0].text);
+         else if (msg.role === 'model') appendMessage('ai', msg.parts[0].text);
+      }
+    }
+  }
+
+  // Cập nhật Dropdown Sessions
+  function updateSessionSelect() {
+    if (!sessionSelect) return;
+    const list = GeminiAI.getSessionsList();
+    sessionSelect.innerHTML = list.map(s => `<option value="${s.id}">${s.title}</option>`).join('');
+    sessionSelect.value = GeminiAI.getActiveId();
+  }
+  
+  window._triggerSessionUIDocUpdate = updateSessionSelect;
+
+  // Toggle panel
+  fab.addEventListener('click', () => {
+    panel.classList.toggle('hidden');
+    if (!panel.classList.contains('hidden')) {
+      updateAISetupVisibility();
+      updateSessionSelect();
+      renderHistory();
+      setTimeout(() => input?.focus(), 200);
+    }
+  });
+
+  closeBtn?.addEventListener('click', () => panel.classList.add('hidden'));
+
+  // Đổi Session
+  sessionSelect?.addEventListener('change', (e) => {
+    GeminiAI.switchSession(e.target.value);
+    renderHistory();
+  });
+
+  // Tạo Chat Mới
+  newChatBtn?.addEventListener('click', () => {
+    GeminiAI.startNewSession();
+    updateSessionSelect();
+    renderHistory();
+    input?.focus();
+  });
+
+  // Xuất Google Docs
+  exportDocsBtn?.addEventListener('click', async () => {
+      exportDocsBtn.disabled = true;
+      const originalText = exportDocsBtn.textContent;
+      exportDocsBtn.textContent = '⏱️ Đang lưu...';
+      try {
+        const url = await GeminiAI.exportActiveSessionToDocs();
+        showToast('Đã lưu thành công vào Google Docs', 'success');
+        window.open(url, '_blank');
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+         exportDocsBtn.textContent = originalText;
+         exportDocsBtn.disabled = false;
+      }
+  });
+
+  // API key save
+  document.getElementById('aiSaveKey')?.addEventListener('click', () => {
+    const key = document.getElementById('aiKeyInput').value.trim();
+    if (!key) { showToast('Vui lòng nhập API key', 'warning'); return; }
+    GeminiAI.setApiKey(key);
+    updateAISetupVisibility();
+    showToast('Đã lưu API key ✓', 'success');
+  });
+
+  // Settings → show key input again
+  document.getElementById('aiSettingsBtn')?.addEventListener('click', () => {
+    if (setupEl) {
+      setupEl.style.display = setupEl.style.display === 'none' ? 'block' : 'none';
+      const keyInput = document.getElementById('aiKeyInput');
+      if (keyInput) keyInput.value = GeminiAI.getApiKey();
+    }
+  });
+
+  // Clear history
+  document.getElementById('aiClearBtn')?.addEventListener('click', () => {
+    GeminiAI.clearHistory();
+    renderHistory();
+    showToast('Đã xóa lịch sử cuộc trò chuyện này', 'success');
+  });
+
+  // Send message
+  async function sendMessage(text) {
+    if (!text || !text.trim()) return;
+    text = text.trim();
+
+    // Remove welcome
+    const welcome = messagesEl?.querySelector('.ai-welcome');
+    if (welcome) welcome.remove();
+
+    appendMessage('user', text);
+
+    // Clear input
+    if (input) input.value = '';
+
+    // Show typing indicator
+    const typingEl = document.createElement('div');
+    typingEl.className = 'ai-typing';
+    typingEl.innerHTML = '<div class="ai-typing-dot"></div><div class="ai-typing-dot"></div><div class="ai-typing-dot"></div>';
+    messagesEl?.appendChild(typingEl);
+    scrollToBottom();
+
+    // Disable input
+    if (sendBtn) sendBtn.disabled = true;
+    if (input) input.disabled = true;
+
+    try {
+      const reply = await GeminiAI.chat(text);
+      typingEl.remove();
+      appendMessage('ai', reply);
+    } catch (err) {
+      typingEl.remove();
+      if (err.message === 'NO_API_KEY') {
+        appendMessage('error', '⚠️ Chưa có API key. Nhấn ⚙️ để cài đặt.');
+        if (setupEl) setupEl.style.display = 'block';
+      } else {
+        appendMessage('error', '❌ ' + err.message);
+      }
+    } finally {
+      if (sendBtn) sendBtn.disabled = false;
+      if (input) { input.disabled = false; input.focus(); }
+    }
+  }
+
+  sendBtn?.addEventListener('click', () => sendMessage(input?.value));
+  input?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage(input.value);
+    }
+  });
+
+  // Quick action chips
+  quickEl?.addEventListener('click', (e) => {
+    const chip = e.target.closest('.ai-chip');
+    if (chip) sendMessage(chip.dataset.prompt);
+  });
+
+  function appendMessage(type, text) {
+    const div = document.createElement('div');
+    if (type === 'user') {
+      div.className = 'ai-msg ai-msg-user';
+      div.textContent = text;
+    } else if (type === 'ai') {
+      div.className = 'ai-msg ai-msg-ai';
+      div.innerHTML = simpleMarkdownToHTML(text);
+    } else {
+      div.className = 'ai-msg ai-msg-error';
+      div.textContent = text;
+    }
+    messagesEl?.appendChild(div);
+    scrollToBottom();
+  }
+
+  function scrollToBottom() {
+    if (messagesEl) {
+      requestAnimationFrame(() => {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      });
+    }
+  }
+
+  function updateAISetupVisibility() {
+    const hasKey = !!GeminiAI.getApiKey();
+    if (setupEl) setupEl.style.display = hasKey ? 'none' : 'block';
+    if (messagesEl) messagesEl.style.display = hasKey ? 'flex' : 'none';
+    if (quickEl) quickEl.style.display = hasKey ? 'flex' : 'none';
+    if (sessionSelect) sessionSelect.style.display = hasKey ? 'inline-block' : 'none';
+    if (newChatBtn) newChatBtn.style.display = hasKey ? 'inline-flex' : 'none';
+    if (exportDocsBtn) exportDocsBtn.style.display = hasKey ? 'inline-flex' : 'none';
+  }
+}
+
+/**
+ * Simple Markdown → HTML cho AI responses
+ */
+function simpleMarkdownToHTML(text) {
+  return text
+    // Code blocks
+    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre style="background:var(--bg-base);padding:8px 12px;border-radius:8px;overflow-x:auto;font-size:0.8rem;margin:4px 0"><code>$2</code></pre>')
+    // Inline code
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    // Bold
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    // Italic
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    // Headers
+    .replace(/^### (.+)$/gm, '<div style="font-weight:700;font-size:0.92rem;margin:8px 0 4px;color:var(--accent)">$1</div>')
+    .replace(/^## (.+)$/gm, '<div style="font-weight:700;font-size:0.95rem;margin:8px 0 4px;color:var(--accent)">$1</div>')
+    // Bullet points
+    .replace(/^[-•] (.+)$/gm, '<div style="padding-left:12px;position:relative"><span style="position:absolute;left:0">•</span>$1</div>')
+    // Numbered list
+    .replace(/^(\d+)\. (.+)$/gm, '<div style="padding-left:16px;position:relative"><span style="position:absolute;left:0;color:var(--accent);font-weight:600">$1.</span>$2</div>')
+    // Line breaks
+    .replace(/\n\n/g, '<div style="height:8px"></div>')
+    .replace(/\n/g, '<br>');
 }
