@@ -485,25 +485,14 @@
 </div>
 
 <!-- ── Scripts ── -->
-<script>
-// Force reload nếu JS cũ đang chạy
-const _CV = '2360';
-if (localStorage.getItem('_cv') !== _CV) {
-  localStorage.setItem('_cv', _CV);
-  // Xóa cache cũ và reload
-  if ('caches' in window) caches.keys().then(k => k.forEach(n => caches.delete(n)));
-  window.location.reload(true);
-}
-</script>
-<script src="js/config.js?v=2360"></script>
-<script src="js/auth.js?v=2360"></script>
-<script src="js/stats.js?v=2360"></script>
-<script src="js/docs.js?v=2360"></script>
-<script src="js/gemini.js?v=2360"></script>
-<script src="js/sheets.js?v=2360"></script>
-<script src="js/drive.js?v=2360"></script>
-<script src="js/col-mapper.js?v=2360"></script>
-<script src="js/list.js?v=2360"></script>
+<script src="js/config.js?v=2401"></script>
+<script src="js/auth.js?v=2401"></script>
+<script src="js/docs.js?v=2401"></script>
+<script src="js/gemini.js?v=2401"></script>
+<script src="js/sheets.js?v=2401"></script>
+<script src="js/drive.js?v=2401"></script>
+<script src="js/col-mapper.js?v=2401"></script>
+<script src="js/list.js?v=2401"></script>
 
 <!-- Google Identity Services -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>

@@ -751,33 +751,60 @@ function updateAccountModal(info) {
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
+let _appInitialized = false;  // guard: chỉ chạy 1 lần
+
 async function init() {
-  // Wait for GIS to load
+  if (_appInitialized) return;
+  _appInitialized = true;
+
+  // 1. Chờ Google Identity Services (GIS) load — tối đa 6 giây
   let tries = 0;
-  while (typeof google === 'undefined' && tries < 20) {
+  while (typeof google === 'undefined' && tries < 30) {
     await new Promise((r) => setTimeout(r, 200));
     tries++;
   }
+  if (typeof google === 'undefined') {
+    showToast('Không kết nối được Google. Kiểm tra mạng rồi tải lại trang!', 'error');
+    showLoginScreen();
+    return;
+  }
 
-  // Wait for picker API
+  // 2. Chờ gapi (Picker) load — tối đa 5 giây rồi bỏ qua (Picker không bắt buộc để login)
   await new Promise((resolve) => {
     if (typeof gapi !== 'undefined') {
       gapi.load('picker', resolve);
     } else {
-      window.addEventListener('load', () => {
-        if (typeof gapi !== 'undefined') gapi.load('picker', resolve);
-        else resolve();
-      });
+      // Nếu load event đã xong hoặc chưa → dùng timeout fallback
+      const timeout = setTimeout(resolve, 5000); // bỏ qua sau 5s
+      const onLoad = () => {
+        clearTimeout(timeout);
+        if (typeof gapi !== 'undefined') {
+          gapi.load('picker', resolve);
+        } else {
+          resolve();
+        }
+        window.removeEventListener('load', onLoad);
+      };
+      if (document.readyState === 'complete') {
+        // load event đã xảy ra rồi → gapi sẽ không load nữa → resolve ngay
+        clearTimeout(timeout);
+        resolve();
+      } else {
+        window.addEventListener('load', onLoad);
+      }
     }
   });
 
+  // 3. Khởi tạo Auth
   await Auth.init();
 
+  // 4. Kiểm tra trạng thái đăng nhập
   if (!Auth.isSignedIn()) {
     showLoginScreen();
     return;
   }
 
+  // 5. Kiểm tra Sheet đã kết nối chưa
   const spreadsheetId = localStorage.getItem(APP_CONFIG.STORAGE.SPREADSHEET_ID);
   const sheetName = localStorage.getItem(APP_CONFIG.STORAGE.SHEET_NAME);
 
@@ -786,10 +813,11 @@ async function init() {
     return;
   }
 
+  // 6. Hiển thị UI chính và tải dữ liệu
   showUI();
   await loadData();
 
-  // Events
+  // 7. Gán event chỉ sau khi UI đang hiển thị
   document.getElementById('searchInput')?.addEventListener('input', debounce((e) => {
     State.searchQuery = e.target.value.trim();
     applyFiltersAndSort();
@@ -802,7 +830,7 @@ async function init() {
     renderList();
   });
 
-  // Table row click → mở form.html (giống giao diện nhập liệu)
+  // Table row click → mở form.html
   document.getElementById('tableView')?.addEventListener('click', (e) => {
     const tr = e.target.closest('tr[data-row]');
     if (tr) {
@@ -881,11 +909,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Sign out
+  // Sign out — reload page để kill GIS session khỏi memory
   document.getElementById('btnSignOut')?.addEventListener('click', () => {
-    Auth.signOut();
-    showLoginScreen();
     closeModal();
+    Auth.signOut();           // xoá token + đánh dấu signed-out
+    window.location.reload(); // reload hoàn toàn → GIS không thể auto sign-in lại
   });
 
   // Account modal

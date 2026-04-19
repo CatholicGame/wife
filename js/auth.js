@@ -1,20 +1,22 @@
 /**
  * BĐS Survey App – Google Auth & Picker
  * ======================================
- * Xử lý đăng nhập Google + Google Picker chọn Sheet
- *
- * LUỒNG ĐƠN GIẢN:
- *  1. Auth.init()       → khởi tạo tokenClient
- *  2. Auth.isSignedIn() → true nếu có token hợp lệ trong sessionStorage
- *  3. Auth.signIn()     → mở popup Google, chờ xong mới trả về token (CHỈ GỌI TỪ nút bấm!)
- *  4. Auth.getToken()   → trả token đang có (KHÔNG mở popup)
- *  5. Auth.signOut()    → xoá token + user info
+ * Luồng:
+ *  - init()       → khởi tạo GIS client (không mở popup)
+ *  - isSignedIn() → kiểm tra token còn hợp lệ không (chỉ đọc, không request)
+ *  - getToken()   → trả token hiện tại (không mở popup, trả null nếu hết hạn)
+ *  - signIn()     → MỞ POPUP Google (CHỈ gọi từ click handler của nút bấm!)
+ *  - signOut()    → xóa token + đánh dấu "tự tay đăng xuất" để chặn GIS auto sign-in
  */
 
 const Auth = (() => {
+  // ─── State ──────────────────────────────────────────────────────────────────
   let tokenClient = null;
-  let _accessToken = null;  // token đang giữ trong bộ nhớ
-  let _tokenExpiry = 0;
+  let _accessToken = null;
+  let _tokenExpiry  = 0;
+
+  // Key đánh dấu user CHỦ ĐỘNG đăng xuất — ngăn GIS tự sign-in lại
+  const KEY_SIGNED_OUT = 'bds_signed_out';
 
   // ─── Internal ────────────────────────────────────────────────────────────────
 
@@ -24,6 +26,8 @@ const Auth = (() => {
     _tokenExpiry = Date.now() + (secs - 60) * 1000;
     sessionStorage.setItem(APP_CONFIG.STORAGE.ACCESS_TOKEN, token);
     sessionStorage.setItem(APP_CONFIG.STORAGE.TOKEN_EXPIRY, String(_tokenExpiry));
+    // Bỏ flag "đã đăng xuất" khi có token mới
+    localStorage.removeItem(KEY_SIGNED_OUT);
   }
 
   function _load() {
@@ -31,7 +35,7 @@ const Auth = (() => {
     const e = Number(sessionStorage.getItem(APP_CONFIG.STORAGE.TOKEN_EXPIRY) || 0);
     if (t && Date.now() < e) {
       _accessToken = t;
-      _tokenExpiry = e;
+      _tokenExpiry  = e;
       return true;
     }
     return false;
@@ -39,28 +43,35 @@ const Auth = (() => {
 
   function _clear() {
     _accessToken = null;
-    _tokenExpiry = 0;
+    _tokenExpiry  = 0;
     sessionStorage.removeItem(APP_CONFIG.STORAGE.ACCESS_TOKEN);
     sessionStorage.removeItem(APP_CONFIG.STORAGE.TOKEN_EXPIRY);
+    sessionStorage.removeItem(APP_CONFIG.STORAGE.CACHED_DATA);
+    sessionStorage.removeItem(APP_CONFIG.STORAGE.CACHE_TIME);
+  }
+
+  function _isIntentionallySignedOut() {
+    return localStorage.getItem(KEY_SIGNED_OUT) === '1';
   }
 
   // ─── Public ──────────────────────────────────────────────────────────────────
 
   /**
-   * Khởi tạo GIS token client. Gọi 1 lần sau khi GIS script load.
-   * Không tự mở popup!
+   * Khởi tạo GIS token client. Gọi 1 lần. KHÔNG mở popup.
    */
   function init() {
     return new Promise((resolve) => {
       if (typeof google === 'undefined') { resolve(false); return; }
 
-      // Thử load token từ sessionStorage trước
-      _load();
+      // Nếu user ĐÃ CHỦ ĐỘNG đăng xuất → không load token cũ
+      if (!_isIntentionallySignedOut()) {
+        _load();
+      }
 
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: APP_CONFIG.CLIENT_ID,
         scope: APP_CONFIG.SCOPES,
-        // Callback rỗng — sẽ được gán lại bởi signIn()
+        // Callback trống — chỉ signIn() mới gán callback thật
         callback: () => {},
       });
 
@@ -69,17 +80,17 @@ const Auth = (() => {
   }
 
   /**
-   * Kiểm tra xem token còn hợp lệ không.
-   * KHÔNG mở popup, chỉ kiểm tra bộ nhớ + sessionStorage.
+   * Kiểm tra token hợp lệ. KHÔNG mở popup, KHÔNG request mới.
    */
   function isSignedIn() {
+    if (_isIntentionallySignedOut()) return false;
     if (_accessToken && Date.now() < _tokenExpiry) return true;
     return _load();
   }
 
   /**
-   * Lấy token đang có. KHÔNG mở popup.
-   * Nếu hết hạn → trả null (caller phải tự xử lý)
+   * Lấy token hiện tại. KHÔNG mở popup.
+   * Trả null nếu chưa đăng nhập / đã hết hạn.
    */
   function getToken() {
     if (isSignedIn()) return _accessToken;
@@ -87,9 +98,8 @@ const Auth = (() => {
   }
 
   /**
-   * Đăng nhập – mở popup Google để xin cấp quyền.
-   * CHỈ gọi hàm này từ handler của nút bấm!
-   * Returns: access_token (string) hoặc throw nếu lỗi/user hủy
+   * Mở popup Google để đăng nhập.
+   * CHỈ gọi từ event handler của nút bấm!
    */
   function signIn() {
     return new Promise((resolve, reject) => {
@@ -99,34 +109,51 @@ const Auth = (() => {
       }
 
       tokenClient.callback = (response) => {
+        // Reset về callback trống sau khi xử lý
+        tokenClient.callback = () => {};
+
         if (response.error) {
           reject(new Error(response.error_description || response.error));
           return;
         }
+
         _save(response.access_token, response.expires_in);
-        // Lưu user info bất đồng bộ, không block flow chính
+
+        // Lấy user info bất đồng bộ
         _fetchUserInfo(response.access_token).then((info) => {
           if (info) localStorage.setItem(APP_CONFIG.STORAGE.USER_INFO, JSON.stringify(info));
         });
+
         resolve(response.access_token);
       };
 
-      // prompt='select_account' nếu chưa có token, '' nếu chỉ cần gia hạn
-      tokenClient.requestAccessToken({ prompt: isSignedIn() ? '' : 'select_account' });
+      // Xóa flag signed-out khi user chủ động đăng nhập
+      localStorage.removeItem(KEY_SIGNED_OUT);
+
+      tokenClient.requestAccessToken({ prompt: 'select_account' });
     });
   }
 
   /**
-   * Đăng xuất – thu hồi token và xoá toàn bộ dữ liệu cục bộ
+   * Đăng xuất: xóa token + đánh dấu "đã đăng xuất thủ công"
+   * QUAN TRỌNG: sau khi gọi hàm này, gọi location.reload() ở caller
+   * để kill toàn bộ GIS state trong memory.
    */
   function signOut() {
     const t = _accessToken;
+
     _clear();
     localStorage.removeItem(APP_CONFIG.STORAGE.USER_INFO);
-    // Không xoá spreadsheetId để user đăng nhập lại vẫn thấy sheet cũ
+    localStorage.setItem(KEY_SIGNED_OUT, '1'); // ← chặn GIS auto sign-in sau reload
 
+    // Thu hồi token phía Google
     if (t && typeof google !== 'undefined') {
       try { google.accounts.oauth2.revoke(t); } catch (_) {}
+    }
+
+    // Vô hiệu hóa callback để GIS không tự gọi nếu còn đang pending
+    if (tokenClient) {
+      tokenClient.callback = () => {};
     }
   }
 
