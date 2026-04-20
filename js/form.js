@@ -938,10 +938,28 @@ function renderDynamicFields(headers, colMap) {
   section.classList.remove('hidden');
   container.innerHTML = unmapped.map((h) => `
     <div class="form-group field-unknown">
-      <label class="form-label">${h}</label>
+      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center">
+        <span>${h}</span>
+        <button type="button" class="btn-hide-dynamic" data-header="${h}" style="background:transparent;border:none;color:var(--danger);font-size:12px;cursor:pointer" title="Ẩn cột này khỏi form">✕ Bỏ qua</button>
+      </label>
       <input type="text" class="form-control" data-header="${h}" placeholder="${h}…">
     </div>
   `).join('');
+
+  // Add listener cho nút Hide
+  container.querySelectorAll('.btn-hide-dynamic').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const h = e.target.dataset.header;
+      let delCols = JSON.parse(localStorage.getItem('bds_user_deleted_cols') || '[]');
+      if (!delCols.includes(h)) delCols.push(h);
+      localStorage.setItem('bds_user_deleted_cols', JSON.stringify(delCols));
+      
+      // Xóa phần tử khỏi DOM ngay lập tức
+      e.target.closest('.form-group').remove();
+      if (container.children.length === 0) section.classList.add('hidden');
+      showToast('Đã ẩn cột "' + h + '" khỏi form', 'success');
+    });
+  });
 }
 
 // ─── Custom columns (từ V2 col config) ────────────────────────────────────────
