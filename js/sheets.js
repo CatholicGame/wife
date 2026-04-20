@@ -335,9 +335,6 @@ const SheetsAPI = (() => {
     addColumnHeader,
     colIndexToLetter,
     invalidateCache,
-    isGoogleSheetsUrl,
-    extractIdFromUrl,
-    extractGidFromUrl
   };
 })();
 
