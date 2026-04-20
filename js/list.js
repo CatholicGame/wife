@@ -198,11 +198,24 @@ function applyFiltersAndSort() {
   // Sort
   rows.sort((a, b) => {
     switch (State.sortBy) {
+      // ── Ngày ──
+      case 'date-asc':  return a._row - b._row;
+      // ── Điểm ──
       case 'score-desc': return (parseFloat(colVal(b, 'SCORE')) || 0) - (parseFloat(colVal(a, 'SCORE')) || 0);
-      case 'price-asc':  return (parseFloat(colVal(a, 'PRICE')) || 0) - (parseFloat(colVal(b, 'PRICE')) || 0);
-      case 'price-desc': return (parseFloat(colVal(b, 'PRICE')) || 0) - (parseFloat(colVal(a, 'PRICE')) || 0);
-      case 'area-desc':  return (parseFloat(colVal(b, 'AREA')) || 0) - (parseFloat(colVal(a, 'AREA')) || 0);
-      default: return row_desc(a, b); // date-desc
+      case 'score-asc':  return (parseFloat(colVal(a, 'SCORE')) || 0) - (parseFloat(colVal(b, 'SCORE')) || 0);
+      // ── Giá ──
+      case 'price-asc':     return (parseFloat(colVal(a, 'PRICE')) || 0) - (parseFloat(colVal(b, 'PRICE')) || 0);
+      case 'price-desc':    return (parseFloat(colVal(b, 'PRICE')) || 0) - (parseFloat(colVal(a, 'PRICE')) || 0);
+      case 'price-m2-asc':  return (parseFloat(colVal(a, 'PRICE_M2')) || 0) - (parseFloat(colVal(b, 'PRICE_M2')) || 0);
+      case 'price-m2-desc': return (parseFloat(colVal(b, 'PRICE_M2')) || 0) - (parseFloat(colVal(a, 'PRICE_M2')) || 0);
+      // ── Diện tích ──
+      case 'area-desc': return (parseFloat(colVal(b, 'AREA')) || 0) - (parseFloat(colVal(a, 'AREA')) || 0);
+      case 'area-asc':  return (parseFloat(colVal(a, 'AREA')) || 0) - (parseFloat(colVal(b, 'AREA')) || 0);
+      // ── Khu vực ──
+      case 'district-az': return (colVal(a, 'DISTRICT') || '').localeCompare(colVal(b, 'DISTRICT') || '', 'vi');
+      case 'district-za': return (colVal(b, 'DISTRICT') || '').localeCompare(colVal(a, 'DISTRICT') || '', 'vi');
+      // ── Mặc định: mới nhất ──
+      default: return row_desc(a, b);
     }
   });
 
@@ -370,71 +383,139 @@ function saveHiddenCols(hiddenSet) {
 }
 
 function openColSettingsPanel() {
-  // Remove existing panel if any
   document.getElementById('colSettingsPanel')?.remove();
 
-  const cols = getV2Columns();
-  const hidden = getHiddenCols();
+  const allCols = getV2Columns();
+  const hidden  = getHiddenCols();
 
-  const V2_GROUP_LABEL = {
-    default: '🔘 Chung',
-    green: '🟢 Vị trí',
-    orange: '🟠 Thông số',
-    purple: '🟣 Đánh giá',
-    red: '🔴 Liên hệ',
+  // Dot color per group
+  const GROUP_DOT = {
+    default: 'var(--bg-surface)',
+    green:   'rgba(0,212,170,0.6)',
+    orange:  'rgba(245,166,35,0.6)',
+    purple:  'rgba(180,100,255,0.6)',
+    red:     'rgba(231,76,60,0.6)',
   };
 
-  // Group cols
-  const groups = {};
-  cols.forEach(col => {
-    const g = col.group || 'default';
-    if (!groups[g]) groups[g] = [];
-    groups[g].push(col);
-  });
-
-  const groupOrder = ['default', 'green', 'red', 'orange', 'purple'];
-
-  const groupsHtml = groupOrder
-    .filter(g => groups[g])
-    .map(g => {
-      const items = groups[g].map(col => {
-        const isHidden = hidden.has(col.id);
-        const isSystem = col.system;
-        return `
-          <label class="col-toggle-item${isSystem ? ' col-toggle-system' : ''}" ${isSystem ? 'title="Cột hệ thống – không thể ẩn"' : ''}>
-            <input type="checkbox" class="col-toggle-cb" data-col-id="${col.id}"
-              ${!isHidden ? 'checked' : ''} ${isSystem ? 'disabled' : ''}>
-            <span class="col-toggle-dot" style="background:${V2_GROUP_BG[g] || 'var(--bg-surface)'}"></span>
-            <span>${col.label}</span>
-          </label>`;
-      }).join('');
-      return `<div class="col-settings-group"><div class="col-settings-group-label">${V2_GROUP_LABEL[g] || g}</div>${items}</div>`;
-    }).join('');
+  // Build flat list HTML
+  const itemsHtml = allCols.map((col) => {
+    const isHidden = hidden.has(col.id);
+    const isSystem = col.system;
+    const dot = GROUP_DOT[col.group] || GROUP_DOT.default;
+    return `
+      <div class="col-toggle-item${isSystem ? ' col-toggle-system' : ''}"
+           data-col-id="${col.id}"
+           draggable="${isSystem ? 'false' : 'true'}">
+        <span class="col-drag-handle" title="${isSystem ? 'Cột hệ thống' : 'Kéo để sắp xếp'}">⠿</span>
+        <input type="checkbox" class="col-toggle-cb" data-col-id="${col.id}"
+               ${!isHidden ? 'checked' : ''} ${isSystem ? 'disabled' : ''}>
+        <span class="col-toggle-dot" style="background:${dot}"></span>
+        <span style="flex:1">${col.label}</span>
+      </div>`;
+  }).join('');
 
   const panel = document.createElement('div');
   panel.id = 'colSettingsPanel';
   panel.innerHTML = `
     <div class="col-settings-header">
-      <span>⚙️ Hiển thị cột</span>
+      <span>⚙️ Cột &amp; Thứ tự</span>
       <div style="display:flex;gap:6px">
         <button id="colSettingsShowAll" class="col-settings-action-btn">Tất cả</button>
         <button id="colSettingsHideAll" class="col-settings-action-btn">Ẩn hết</button>
         <button id="colSettingsClose" class="col-settings-close">✕</button>
       </div>
     </div>
-    <div class="col-settings-body">${groupsHtml}</div>
+    <div class="col-settings-hint">⠿ Kéo để thay đổi thứ tự cột</div>
+    <div class="col-settings-body" id="colSettingsBody">${itemsHtml}</div>
   `;
   document.body.appendChild(panel);
 
-  // Position below the settings button
-  const btn = document.getElementById('btnColSettings');
-  if (btn) {
-    const rect = btn.getBoundingClientRect();
-    panel.style.top = (rect.bottom + 6) + 'px';
+  // Position below the ⚙️ Cột button
+  const triggerBtn = document.getElementById('btnColSettings');
+  if (triggerBtn) {
+    const rect = triggerBtn.getBoundingClientRect();
+    panel.style.top   = (rect.bottom + 6) + 'px';
     panel.style.right = (window.innerWidth - rect.right) + 'px';
+    // Clamp so it doesn't go off-screen bottom
+    const maxH = window.innerHeight - rect.bottom - 16;
+    panel.style.maxHeight = Math.min(parseInt(panel.style.maxHeight || 9999), maxH) + 'px';
   }
 
-  function applyChanges() {
+  const body = panel.querySelector('#colSettingsBody');
+  let dragSrc = null;
+
+  // ── Drag & Drop ──
+  function addDragListeners(item) {
+    if (item.dataset.colId && !item.classList.contains('col-toggle-system')) {
+      item.addEventListener('dragstart', onDragStart);
+      item.addEventListener('dragend',   onDragEnd);
+    }
+    item.addEventListener('dragover',  onDragOver);
+    item.addEventListener('dragleave', onDragLeave);
+    item.addEventListener('drop',      onDrop);
+  }
+
+  function clearDropIndicators() {
+    body.querySelectorAll('.col-drag-over-top, .col-drag-over-bottom').forEach(el => {
+      el.classList.remove('col-drag-over-top', 'col-drag-over-bottom');
+    });
+  }
+
+  function onDragStart(e) {
+    dragSrc = this;
+    this.classList.add('col-drag-dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', this.dataset.colId);
+  }
+
+  function onDragEnd() {
+    this.classList.remove('col-drag-dragging');
+    clearDropIndicators();
+    _saveDragOrder();
+  }
+
+  function onDragOver(e) {
+    if (!dragSrc || dragSrc === this) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    clearDropIndicators();
+    const rect = this.getBoundingClientRect();
+    const isBefore = e.clientY < rect.top + rect.height / 2;
+    this.classList.add(isBefore ? 'col-drag-over-top' : 'col-drag-over-bottom');
+  }
+
+  function onDragLeave() {
+    this.classList.remove('col-drag-over-top', 'col-drag-over-bottom');
+  }
+
+  function onDrop(e) {
+    e.preventDefault();
+    clearDropIndicators();
+    if (!dragSrc || dragSrc === this) return;
+    const rect = this.getBoundingClientRect();
+    const isBefore = e.clientY < rect.top + rect.height / 2;
+    if (isBefore) {
+      body.insertBefore(dragSrc, this);
+    } else {
+      body.insertBefore(dragSrc, this.nextSibling);
+    }
+  }
+
+  body.querySelectorAll('.col-toggle-item').forEach(addDragListeners);
+
+  function _saveDragOrder() {
+    const newOrder = [...body.querySelectorAll('[data-col-id]')].map(el => el.dataset.colId);
+    const colById  = {};
+    getV2Columns().forEach(c => { colById[c.id] = c; });
+    const newCols = newOrder.map(id => colById[id]).filter(Boolean);
+    // Safety: append any orphaned cols not in DOM
+    getV2Columns().forEach(c => { if (!newOrder.includes(c.id)) newCols.push(c); });
+    saveV2Columns(newCols);
+    renderV2Table();
+  }
+
+  // ── Visibility checkboxes ──
+  function applyVisibility() {
     const newHidden = new Set();
     panel.querySelectorAll('.col-toggle-cb').forEach(cb => {
       if (!cb.checked) newHidden.add(cb.dataset.colId);
@@ -444,17 +525,17 @@ function openColSettingsPanel() {
   }
 
   panel.querySelectorAll('.col-toggle-cb').forEach(cb => {
-    cb.addEventListener('change', applyChanges);
+    cb.addEventListener('change', applyVisibility);
   });
 
   panel.querySelector('#colSettingsShowAll')?.addEventListener('click', () => {
     panel.querySelectorAll('.col-toggle-cb:not([disabled])').forEach(cb => cb.checked = true);
-    applyChanges();
+    applyVisibility();
   });
 
   panel.querySelector('#colSettingsHideAll')?.addEventListener('click', () => {
     panel.querySelectorAll('.col-toggle-cb:not([disabled])').forEach(cb => cb.checked = false);
-    applyChanges();
+    applyVisibility();
   });
 
   panel.querySelector('#colSettingsClose')?.addEventListener('click', () => panel.remove());
@@ -470,10 +551,12 @@ function openColSettingsPanel() {
   }, 50);
 }
 
+
 // Default V2 columns blueprint
 const V2_DEFAULT_COLS = [
   { id: 'stt',       label: 'STT',            group: 'default',  system: true },
   { id: 'date',      label: 'Ngày khảo sát',  group: 'default',  knownKey: 'DATE' },
+  { id: 'notes',     label: 'Tiêu đề',        group: 'default',  knownKey: 'NOTES' },
   { id: 'status',    label: 'Tình trạng',     group: 'default',  knownKey: 'STATUS' },
   { id: 'type',      label: 'Loại BĐS',      group: 'default',  knownKey: 'TYPE' },
   { id: 'map',       label: 'Link Map',       group: 'green',    knownKey: 'MAPS_LINK' },
@@ -491,7 +574,6 @@ const V2_DEFAULT_COLS = [
   { id: 'legal',     label: 'Pháp lý',       group: 'orange',   knownKey: 'LEGAL' },
   { id: 'pros',      label: 'Ưu điểm',       group: 'purple',   knownKey: 'PROS' },
   { id: 'cons',      label: 'Nhược điểm',    group: 'purple',   knownKey: 'CONS' },
-  { id: 'notes',     label: 'Nhận xét chung', group: 'purple',   knownKey: 'NOTES' },
   { id: 'score',     label: 'Tổng điểm',     group: 'purple',   knownKey: 'SCORE' },
   { id: 'photos',    label: 'Ảnh',            group: 'default',  knownKey: 'PHOTOS' },
 ];
@@ -506,10 +588,10 @@ const V2_GROUP_BG = {
 
 function getV2Columns() {
   try {
-    const ver = localStorage.getItem('v2_col_v3');
+    const ver = localStorage.getItem('v2_col_v5');
     if (!ver) {
-      localStorage.setItem('v2_col_v3', '1');
-      localStorage.removeItem(V2_COLS_KEY); // wipe old layout
+      localStorage.setItem('v2_col_v5', '1');
+      localStorage.removeItem(V2_COLS_KEY); // wipe old layout → apply new defaults
       return [...V2_DEFAULT_COLS];
     }
     const saved = localStorage.getItem(V2_COLS_KEY);

@@ -162,6 +162,17 @@
     <input type="hidden" id="field_DRIVE_FOLDER">
     <input type="hidden" id="field_PHOTO_COUNT" value="0">
 
+    <!-- ── Section: Tiêu đề ── -->
+    <div class="form-section" style="border-color:rgba(0,212,170,0.35);background:rgba(0,212,170,0.04)">
+      <div class="form-section-title" style="color:var(--accent)">📌 Tiêu đề</div>
+      <div class="form-group">
+        <input type="text" class="form-control" id="field_NOTES"
+               placeholder="VD: Nhà phố 3 tầng mặt tiền Q.Bình Thạnh, tiềm năng cao…"
+               autocomplete="off"
+               style="font-size:1rem;font-weight:600;letter-spacing:0.01em">
+      </div>
+    </div>
+
     <!-- ── Section: Vị trí ─────────────────────────── -->
     <div class="form-section">
       <div class="form-section-title">📍 Vị trí & Bản đồ</div>
@@ -408,10 +419,6 @@
       <div class="form-group">
         <label class="form-label">Nhược điểm</label>
         <textarea class="form-control" id="field_CONS" rows="2" placeholder="Những điểm hạn chế…"></textarea>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Ghi chú thêm</label>
-        <textarea class="form-control" id="field_NOTES" rows="3" placeholder="Thông tin bổ sung…"></textarea>
       </div>
     </div>
 
