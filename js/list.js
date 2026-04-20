@@ -355,6 +355,120 @@ function renderTable() {
 
 // ─── V2 Table (Refactor View) ─────────────────────────────────────────────────
 const V2_COLS_KEY = 'bds_v2_columns';
+const V2_HIDDEN_COLS_KEY = 'bds_v2_hidden_cols';
+
+function getHiddenCols() {
+  try {
+    const saved = localStorage.getItem(V2_HIDDEN_COLS_KEY);
+    if (saved) return new Set(JSON.parse(saved));
+  } catch (e) {}
+  return new Set();
+}
+
+function saveHiddenCols(hiddenSet) {
+  localStorage.setItem(V2_HIDDEN_COLS_KEY, JSON.stringify([...hiddenSet]));
+}
+
+function openColSettingsPanel() {
+  // Remove existing panel if any
+  document.getElementById('colSettingsPanel')?.remove();
+
+  const cols = getV2Columns();
+  const hidden = getHiddenCols();
+
+  const V2_GROUP_LABEL = {
+    default: '🔘 Chung',
+    green: '🟢 Vị trí',
+    orange: '🟠 Thông số',
+    purple: '🟣 Đánh giá',
+    red: '🔴 Liên hệ',
+  };
+
+  // Group cols
+  const groups = {};
+  cols.forEach(col => {
+    const g = col.group || 'default';
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(col);
+  });
+
+  const groupOrder = ['default', 'green', 'red', 'orange', 'purple'];
+
+  const groupsHtml = groupOrder
+    .filter(g => groups[g])
+    .map(g => {
+      const items = groups[g].map(col => {
+        const isHidden = hidden.has(col.id);
+        const isSystem = col.system;
+        return `
+          <label class="col-toggle-item${isSystem ? ' col-toggle-system' : ''}" ${isSystem ? 'title="Cột hệ thống – không thể ẩn"' : ''}>
+            <input type="checkbox" class="col-toggle-cb" data-col-id="${col.id}"
+              ${!isHidden ? 'checked' : ''} ${isSystem ? 'disabled' : ''}>
+            <span class="col-toggle-dot" style="background:${V2_GROUP_BG[g] || 'var(--bg-surface)'}"></span>
+            <span>${col.label}</span>
+          </label>`;
+      }).join('');
+      return `<div class="col-settings-group"><div class="col-settings-group-label">${V2_GROUP_LABEL[g] || g}</div>${items}</div>`;
+    }).join('');
+
+  const panel = document.createElement('div');
+  panel.id = 'colSettingsPanel';
+  panel.innerHTML = `
+    <div class="col-settings-header">
+      <span>⚙️ Hiển thị cột</span>
+      <div style="display:flex;gap:6px">
+        <button id="colSettingsShowAll" class="col-settings-action-btn">Tất cả</button>
+        <button id="colSettingsHideAll" class="col-settings-action-btn">Ẩn hết</button>
+        <button id="colSettingsClose" class="col-settings-close">✕</button>
+      </div>
+    </div>
+    <div class="col-settings-body">${groupsHtml}</div>
+  `;
+  document.body.appendChild(panel);
+
+  // Position below the settings button
+  const btn = document.getElementById('btnColSettings');
+  if (btn) {
+    const rect = btn.getBoundingClientRect();
+    panel.style.top = (rect.bottom + 6) + 'px';
+    panel.style.right = (window.innerWidth - rect.right) + 'px';
+  }
+
+  function applyChanges() {
+    const newHidden = new Set();
+    panel.querySelectorAll('.col-toggle-cb').forEach(cb => {
+      if (!cb.checked) newHidden.add(cb.dataset.colId);
+    });
+    saveHiddenCols(newHidden);
+    renderV2Table();
+  }
+
+  panel.querySelectorAll('.col-toggle-cb').forEach(cb => {
+    cb.addEventListener('change', applyChanges);
+  });
+
+  panel.querySelector('#colSettingsShowAll')?.addEventListener('click', () => {
+    panel.querySelectorAll('.col-toggle-cb:not([disabled])').forEach(cb => cb.checked = true);
+    applyChanges();
+  });
+
+  panel.querySelector('#colSettingsHideAll')?.addEventListener('click', () => {
+    panel.querySelectorAll('.col-toggle-cb:not([disabled])').forEach(cb => cb.checked = false);
+    applyChanges();
+  });
+
+  panel.querySelector('#colSettingsClose')?.addEventListener('click', () => panel.remove());
+
+  // Close on outside click
+  setTimeout(() => {
+    document.addEventListener('mousedown', function outsideClick(e) {
+      if (!panel.contains(e.target) && e.target.id !== 'btnColSettings') {
+        panel.remove();
+        document.removeEventListener('mousedown', outsideClick);
+      }
+    });
+  }, 50);
+}
 
 // Default V2 columns blueprint
 const V2_DEFAULT_COLS = [
@@ -412,14 +526,38 @@ function renderV2Table() {
   const container = document.getElementById('refactorView');
   if (!container) return;
 
-  const cols = getV2Columns();
+  const allCols = getV2Columns();
+  const hidden = getHiddenCols();
+  // Filter out hidden columns
+  const cols = allCols.filter(col => !hidden.has(col.id));
   const rows = State.filtered;
 
   // Build row map for click navigation
   if (!window._rowMap) window._rowMap = {};
   rows.forEach(row => { window._rowMap[row._row] = row; });
 
-  // (No toolbar — add column button is now in the list header)
+  // Update col-settings button badge
+  const settingsBtn = document.getElementById('btnColSettings');
+  if (settingsBtn) {
+    const hiddenCount = hidden.size;
+    settingsBtn.innerHTML = hiddenCount > 0
+      ? `⚙️ Cột <span style="background:var(--accent);color:#000;border-radius:999px;padding:0 5px;font-size:0.7rem;font-weight:700">${hiddenCount} ẩn</span>`
+      : '⚙️ Cột';
+  }
+
+  // Wire settings button (re-attach each render)
+  if (settingsBtn) {
+    const fresh = settingsBtn.cloneNode(true);
+    settingsBtn.parentNode.replaceChild(fresh, settingsBtn);
+    // Re-set badge on fresh clone
+    if (hidden.size > 0) {
+      fresh.innerHTML = `⚙️ Cột <span style="background:var(--accent);color:#000;border-radius:999px;padding:0 5px;font-size:0.7rem;font-weight:700">${hidden.size} ẩn</span>`;
+    }
+    fresh.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openColSettingsPanel();
+    });
+  }
 
   // Build header
   const thCells = cols.map((col, i) => {
@@ -428,7 +566,7 @@ function renderV2Table() {
       ? ''
       : '<button class="v2-col-delete" data-col-idx="' + i + '" title="Xóa cột">✕</button>';
     return '<th style="background:' + bg + '"><div class="v2-th-wrap"><span>' + col.label + '</span>' + deleteBtn + '</div></th>';
-  }).join('') + '<th style="background:var(--bg-card);position:sticky;right:0;z-index:10;box-shadow:-2px 0 5px rgba(0,0,0,0.1);min-width:50px"><div class="v2-th-wrap" style="justify-content:center"><span>Xóa</span></div></th>';
+  }).join('');
 
   // Build body
   const bodyRows = rows.map((row, rowIdx) => {
@@ -475,8 +613,7 @@ function renderV2Table() {
       return '<td>' + (val || '') + '</td>';
     }).join('');
     
-    const actionCell = '<td style="position:sticky;right:0;background:var(--bg-surface);text-align:center;z-index:9;box-shadow:-2px 0 5px rgba(0,0,0,0.1)"><button class="btn btn-danger btn-delete-row" data-row="' + row._row + '" style="padding:4px 8px;font-size:0.75rem;border-radius:4px" title="Xóa dòng này">🗑️</button></td>';
-    return '<tr data-v2row="' + row._row + '" style="cursor:pointer">' + cells + actionCell + '</tr>';
+    return '<tr data-v2row="' + row._row + '" style="cursor:pointer">' + cells + '</tr>';
   }).join('');
 
   container.innerHTML =
@@ -505,45 +642,76 @@ function renderV2Table() {
     });
   });
 
-  // Delete row buttons
-  container.querySelectorAll('.btn-delete-row').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const rowId = parseInt(btn.dataset.row);
+  // ── Row selection + header delete button ──
+  let _selectedRowNum = null;
+
+  function _setSelectedRow(rowNum) {
+    _selectedRowNum = rowNum;
+    // Highlight
+    container.querySelectorAll('tr[data-v2row]').forEach(tr => {
+      tr.classList.toggle('v2-row-selected', parseInt(tr.dataset.v2row) === rowNum);
+    });
+    // Toggle delete button in header
+    const delBtn = document.getElementById('btnDeleteSelectedRow');
+    if (delBtn) {
+      if (rowNum) {
+        delBtn.classList.remove('hidden', 'btn-ghost');
+        delBtn.classList.add('btn-danger');
+        delBtn.dataset.row = rowNum;
+      } else {
+        delBtn.classList.add('hidden');
+        delBtn.dataset.row = '';
+      }
+    }
+  }
+
+  container.querySelector('table')?.addEventListener('click', (e) => {
+    if (e.target.closest('.v2-col-delete') || e.target.closest('a')) return;
+    const tr = e.target.closest('tr[data-v2row]');
+    if (!tr) { _setSelectedRow(null); return; }
+    const rowNum = parseInt(tr.dataset.v2row);
+    if (!rowNum) return;
+    if (_selectedRowNum === rowNum) {
+      // Second click on same row → navigate to detail
+      const rowObj = State.filtered.find(r => r._row === rowNum);
+      if (!rowObj) return;
+      localStorage.setItem('_rowData', JSON.stringify(rowObj));
+      localStorage.setItem('_rowHeaders', JSON.stringify(State.headers));
+      window.location.href = 'form.html';
+    } else {
+      _setSelectedRow(rowNum);
+    }
+  });
+
+  // Wire the header delete button (re-attach each render to avoid stale closures)
+  const headerDelBtn = document.getElementById('btnDeleteSelectedRow');
+  if (headerDelBtn) {
+    // Clone to remove old listeners
+    const fresh = headerDelBtn.cloneNode(true);
+    headerDelBtn.parentNode.replaceChild(fresh, headerDelBtn);
+    fresh.addEventListener('click', async () => {
+      const rowId = parseInt(fresh.dataset.row);
+      if (!rowId) return;
       if (!confirm('Bạn có chắc chắn muốn xóa BĐS này khỏi bảng? Dữ liệu bị xóa không thể khôi phục!')) return;
-      
       const spreadsheetId = localStorage.getItem(APP_CONFIG.STORAGE.SPREADSHEET_ID);
       const sheetName = localStorage.getItem(APP_CONFIG.STORAGE.SHEET_NAME);
       try {
-        btn.disabled = true;
-        btn.textContent = '⏳';
+        fresh.disabled = true;
+        fresh.textContent = '⏳ Đang xóa…';
         const sheetIdNum = await SheetsAPI.getSheetId(spreadsheetId, sheetName);
-        if (sheetIdNum === undefined) throw new Error('Không tìm thấy ID Worksheet (Vui lòng liên kết lại Sheet)');
+        if (sheetIdNum === undefined) throw new Error('Không tìm thấy ID Worksheet');
         await SheetsAPI.deleteRow(spreadsheetId, sheetName, rowId + 2, sheetIdNum);
         showToast('Đã xóa dòng thành công ✓', 'success');
         SheetsAPI.invalidateCache();
+        _selectedRowNum = null;
         await loadData(true);
       } catch (err) {
         showToast('Lỗi xóa: ' + err.message, 'error');
-        btn.disabled = false;
-        btn.textContent = '🗑️';
+        fresh.disabled = false;
+        fresh.textContent = '🗑️ Xóa dòng';
       }
     });
-  });
-
-  // Row click → save vào localStorage và mở form.html
-  container.querySelector('table')?.addEventListener('click', (e) => {
-    const td = e.target.closest('[data-v2row]');
-    if (!td) return;
-    if (e.target.closest('.v2-col-delete') || e.target.closest('a') || e.target.closest('.btn-delete-row')) return;
-    const rowNum = parseInt(td.dataset.v2row || td.closest('tr')?.dataset.v2row);
-    if (!rowNum) return;
-    const rowObj = State.filtered.find(r => r._row === rowNum);
-    if (!rowObj) return;
-    localStorage.setItem('_rowData', JSON.stringify(rowObj));
-    localStorage.setItem('_rowHeaders', JSON.stringify(State.headers));
-    window.location.href = 'form.html';
-  });
+  }
 }
 
 // ── V2: Delete column with custom confirm ─────────

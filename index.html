@@ -217,24 +217,131 @@
     .data-table th:first-child { border-radius: var(--radius-md) 0 0 0; }
     .data-table th:last-child { border-radius: 0 var(--radius-md) 0 0; }
     .data-table td {
-      padding: 8px 10px;
+      padding: 0 10px;
+      height: 40px;
+      max-height: 40px;
       border-bottom: 1px solid var(--border);
       color: var(--text-primary);
-      vertical-align: top;
+      vertical-align: middle;
       max-width: 220px;
-      overflow: hidden; text-overflow: ellipsis;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .data-table tbody tr {
+      height: 40px;
+      max-height: 40px;
       transition: background 0.15s;
       cursor: pointer;
     }
     .data-table tbody tr:hover {
       background: rgba(0,212,170,0.06);
     }
+    .data-table tbody tr.v2-row-selected {
+      background: rgba(0,212,170,0.15);
+      outline: 1px solid rgba(0,212,170,0.5);
+    }
     .data-table .col-stt { width: 36px; text-align: center; color: var(--text-muted); }
     .data-table .col-addr { min-width: 140px; font-weight: 600; }
     .data-table .col-price { color: var(--accent); font-weight: 700; white-space: nowrap; }
     .data-table .col-score { text-align: center; }
+
+    /* ── Column Settings Panel ── */
+    #colSettingsPanel {
+      position: fixed;
+      z-index: 200;
+      background: rgba(22,27,37,0.97);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(0,212,170,0.25);
+      border-radius: 14px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+      width: 280px;
+      max-height: 70vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: panelFadeIn 0.15s ease;
+    }
+    @keyframes panelFadeIn {
+      from { opacity:0; transform: translateY(-6px); }
+      to   { opacity:1; transform: translateY(0); }
+    }
+    .col-settings-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: rgba(0,212,170,0.08);
+      border-bottom: 1px solid rgba(0,212,170,0.15);
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+    .col-settings-action-btn {
+      background: rgba(0,212,170,0.12);
+      border: 1px solid rgba(0,212,170,0.3);
+      border-radius: 6px;
+      color: var(--accent);
+      font-size: 0.72rem;
+      padding: 2px 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .col-settings-action-btn:hover { background: rgba(0,212,170,0.25); }
+    .col-settings-close {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 1rem;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0 2px;
+    }
+    .col-settings-body {
+      overflow-y: auto;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .col-settings-group-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      padding: 2px 4px 4px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 4px;
+    }
+    .col-toggle-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 6px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: var(--text-primary);
+      transition: background 0.12s;
+      user-select: none;
+    }
+    .col-toggle-item:hover { background: rgba(255,255,255,0.05); }
+    .col-toggle-system { opacity: 0.45; cursor: not-allowed; }
+    .col-toggle-item input[type="checkbox"] {
+      accent-color: var(--accent);
+      width: 15px; height: 15px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .col-toggle-system input[type="checkbox"] { cursor: not-allowed; }
+    .col-toggle-dot {
+      width: 10px; height: 10px;
+      border-radius: 3px;
+      flex-shrink: 0;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
   </style>
 </head>
 <body>
@@ -312,6 +419,8 @@
         <option value="area-desc">📐 Diện tích</option>
       </select>
       <button class="btn btn-primary btn-sm" id="btnAddColFromHeader" style="font-size:0.75rem;padding:4px 10px;white-space:nowrap">➕ Thêm cột</button>
+      <button class="btn btn-danger btn-sm hidden" id="btnDeleteSelectedRow" data-row="" style="font-size:0.75rem;padding:4px 10px;white-space:nowrap;transition:all 0.2s">🗑️ Xóa dòng</button>
+      <button class="btn btn-ghost btn-sm" id="btnColSettings" style="font-size:0.75rem;padding:4px 10px;white-space:nowrap">⚙️ Cột</button>
     </div>
   </div>
 

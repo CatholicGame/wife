@@ -652,20 +652,16 @@ async function loadGallery(folderId, photosCsv = null) {
     return;
   }
 
-  // Fallback: list from Drive API
+  // Fallback: list from Drive API — chỉ dùng để HIỂN THỊ gallery, KHÔNG ghi vào field_PHOTOS
   gallery.innerHTML = '<div style="grid-column:1/-1;text-align:center;font-size:0.8rem;color:var(--text-muted)">Đang tải danh sách ảnh từ Drive...</div>';
   
   try {
     const photos = await DriveAPI.listPhotos(folderId);
     
-    // Convert to CSV holding URL and update form field
-    const csv = photos.map(p => `https://drive.google.com/uc?id=${p.id}&export=view`).join(',');
-    const fieldPhotos = document.querySelector('[data-header="Ảnh"]') || document.getElementById('field_PHOTOS');
-    if (fieldPhotos) fieldPhotos.value = csv;
-
-    if (countBadge) countBadge.textContent = `${photos.length} ảnh`;
-    const countInput = document.getElementById('field_PHOTO_COUNT');
-    if (countInput) countInput.value = photos.length;
+    // CHỈ cập nhật badge đếm ảnh để người dùng biết folder có bao nhiêu ảnh
+    if (countBadge) countBadge.textContent = `${photos.length} ảnh trong folder`;
+    // KHÔNG ghi vào field_PHOTOS hay field_PHOTO_COUNT ở đây
+    // (tránh bug: BĐS B thấy và kế thừa ảnh của BĐS A đã upload cùng folder)
 
     if (photos.length === 0) {
       gallery.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text-muted);font-size:0.8rem;padding:var(--space-2) 0">Chưa có hình ảnh nào</div>';
