@@ -6,6 +6,8 @@
   <meta name="theme-color" content="#0d1117">
   <meta name="description" content="Quản lý danh sách bất động sản khảo sát – đọc/ghi trực tiếp từ Google Sheets">
   <title>BĐS Khảo Sát</title>
+  <!-- Theme toggle: load FIRST to avoid flash of wrong theme -->
+  <script src="js/theme.js"></script>
   <link rel="stylesheet" href="css/app.css">
   <style>
     body { padding-top: var(--nav-height); }
@@ -401,7 +403,7 @@
 <body>
 
 <!-- ── Top Navigation ── -->
-<nav class="top-nav" style="justify-content: center;">
+<nav class="top-nav" style="justify-content: center; position: relative;">
   <a href="index.html" class="nav-logo">
     <span class="logo-icon">🏠</span>
     <span>BĐS <span class="logo-text">Khảo Sát</span></span>

@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#0d1117">
   <title>Thêm BĐS – BĐS Khảo Sát</title>
+  <!-- Theme toggle: load FIRST to avoid flash of wrong theme -->
+  <script src="js/theme.js"></script>
   <link rel="stylesheet" href="css/app.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
@@ -146,7 +148,7 @@
 <body>
 
 <!-- ── Top Navigation ── -->
-<nav class="top-nav">
+<nav class="top-nav" style="position:relative;">
   <a href="javascript:history.back()" class="nav-btn" style="font-size:1.1rem">←</a>
   <span id="formPageTitle" style="font-weight:700;font-size:1rem">Thêm BĐS</span>
   <div class="nav-spacer"></div>

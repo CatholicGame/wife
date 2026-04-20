@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#0d1117">
   <title>Bản đồ – BĐS Khảo Sát</title>
+  <!-- Theme toggle: load FIRST to avoid flash of wrong theme -->
+  <script src="js/theme.js"></script>
   <link rel="stylesheet" href="css/app.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
@@ -32,6 +34,9 @@
       scrollbar-width: none;
     }
     .map-filter-bar::-webkit-scrollbar { display: none; }
+    [data-theme="light"] .map-filter-bar { background: rgba(255,255,255,0.95); }
+    [data-theme="light"] .map-legend { background: rgba(255,255,255,0.95); }
+    [data-theme="light"] .map-count { background: rgba(255,255,255,0.95); color: var(--text-secondary); }
 
     .map-legend {
       position: fixed;
@@ -104,7 +109,7 @@
 </head>
 <body>
 
-<nav class="top-nav">
+<nav class="top-nav" style="position:relative;">
   <a href="index.html" class="nav-logo">
     <span class="logo-icon">🏠</span>
     <span>BĐS <span class="logo-text">Khảo Sát</span></span>

@@ -618,26 +618,16 @@ function renderV2Table() {
   if (!window._rowMap) window._rowMap = {};
   rows.forEach(row => { window._rowMap[row._row] = row; });
 
-  // Update col-settings button badge
+  // Wire settings button (re-attach each render)
   const settingsBtn = document.getElementById('btnColSettings');
   if (settingsBtn) {
-    const hiddenCount = hidden.size;
-    settingsBtn.innerHTML = hiddenCount > 0
-      ? `⚙️ Cột <span style="background:var(--accent);color:#000;border-radius:999px;padding:0 5px;font-size:0.7rem;font-weight:700">${hiddenCount} ẩn</span>`
-      : '⚙️ Cột';
-  }
-
-  // Wire settings button (re-attach each render)
-  if (settingsBtn) {
+    settingsBtn.innerHTML = '⚙️ Cột';
     const fresh = settingsBtn.cloneNode(true);
     settingsBtn.parentNode.replaceChild(fresh, settingsBtn);
-    // Re-set badge on fresh clone
-    if (hidden.size > 0) {
-      fresh.innerHTML = `⚙️ Cột <span style="background:var(--accent);color:#000;border-radius:999px;padding:0 5px;font-size:0.7rem;font-weight:700">${hidden.size} ẩn</span>`;
-    }
     fresh.addEventListener('click', (e) => {
       e.stopPropagation();
       openColSettingsPanel();
+
     });
   }
 
