@@ -921,13 +921,14 @@ function renderDynamicFields(headers, colMap) {
     return RATINGS.some(r => r.fieldHints.some(hint => s.includes(hint)));
   };
   
-  // Lấy tên các custom col để tránh render trùng
-  const customColNames = new Set(_getCustomCols().map(c => c.headerName || c.label));
-  const userDeletedCols = new Set(JSON.parse(localStorage.getItem('bds_user_deleted_cols') || '[]'));
+  // Lấy tên các custom col để tránh render trùng (không phân biệt chữ hoa/thường)
+  const customColNames = new Set(_getCustomCols().map(c => (c.headerName || c.label).toLowerCase().trim()));
+  const userDeletedCols = new Set(JSON.parse(localStorage.getItem('bds_user_deleted_cols') || '[]').map(h => (h || '').toLowerCase().trim()));
   
-  const unmapped = headers.filter((h, i) =>
-    !mappedIndices.has(i) && !isRatingCol(h) && !customColNames.has(h) && !userDeletedCols.has(h)
-  );
+  const unmapped = headers.filter((h, i) => {
+    const s = (h || '').toLowerCase().trim();
+    return !mappedIndices.has(i) && !isRatingCol(h) && !customColNames.has(s) && !userDeletedCols.has(s);
+  });
 
   if (unmapped.length === 0) return;
 
@@ -990,7 +991,8 @@ function renderCustomFields(headers, existingData = null) {
   const container = document.getElementById('customFieldsContainer');
   if (!section || !container) return;
 
-  const customCols = _getCustomCols().filter(c => headers.includes(c.headerName));
+  const lowerHeaders = headers.map(h => (h || '').toLowerCase().trim());
+  const customCols = _getCustomCols().filter(c => lowerHeaders.includes((c.headerName || '').toLowerCase().trim()));
   if (customCols.length === 0) { section.classList.add('hidden'); return; }
 
   section.classList.remove('hidden');
@@ -1054,7 +1056,8 @@ function renderCustomFields(headers, existingData = null) {
 function collectCustomFieldValues(headers, values) {
   document.querySelectorAll('[data-custom-header]').forEach(el => {
     const header = el.dataset.customHeader;
-    const idx = headers.indexOf(header);
+    const lowerHeader = (header || '').toLowerCase().trim();
+    const idx = headers.findIndex(h => (h || '').toLowerCase().trim() === lowerHeader);
     if (idx < 0) return;
     if (el.type === 'checkbox') {
       values[idx] = el.checked ? 'Có' : 'Không';
