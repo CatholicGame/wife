@@ -906,6 +906,8 @@ function showLoginScreen() {
   document.getElementById('btnChangeSheet')?.classList.add('hidden');
   document.getElementById('aiFabBtn')?.classList.add('hidden');
   document.getElementById('aiPanel')?.classList.add('hidden');
+  // Ẩn bottom nav ở màn hình đăng nhập
+  document.getElementById('bottomNav')?.classList.add('hidden');
 }
 
 function showConnectBanner() {
@@ -913,7 +915,9 @@ function showConnectBanner() {
   document.getElementById('connectBanner').classList.remove('hidden');
   document.getElementById('mainContent').classList.add('hidden');
   document.getElementById('fabAdd').classList.add('hidden');
-  
+  // Ẩn bottom nav ở màn hình kết nối Sheet
+  document.getElementById('bottomNav')?.classList.add('hidden');
+
   document.getElementById('aiFabBtn')?.classList.add('hidden');
   document.getElementById('aiPanel')?.classList.add('hidden');
 
@@ -936,6 +940,8 @@ function showUI() {
   document.getElementById('btnSetupCols')?.classList.remove('hidden');
   document.getElementById('btnChangeSheet')?.classList.remove('hidden');
   document.getElementById('aiFabBtn')?.classList.remove('hidden');
+  // Hiển thị bottom nav cố định khi vào màn hình chính
+  document.getElementById('bottomNav')?.classList.remove('hidden');
 
   const sheetName = localStorage.getItem(APP_CONFIG.STORAGE.SPREADSHEET_NAME);
   if (sheetName) document.getElementById('sheetNameLabel').textContent = sheetName;
