@@ -806,7 +806,7 @@ let _v2PendingDeleteId = null;
 function v2RequestDeleteColumn(colId, colLabel) {
   _v2PendingDeleteId = colId;
   const msgEl = document.getElementById('confirmDeleteMsg');
-  if (msgEl) msgEl.innerHTML = 'Cột <strong style="color:var(--accent)">\u201C' + colLabel + '\u201D</strong> sẽ bị xóa khỏi bảng V2.<br>Thao tác này không ảnh hưởng đến Google Sheet.';
+  if (msgEl) msgEl.innerHTML = 'Cột <strong style="color:var(--accent)">\u201c' + colLabel + '\u201d</strong> sẽ bị xóa <strong>vĩnh viễn</strong> khỏi bảng và Google Sheet.';
   document.getElementById('confirmDeleteCol').classList.remove('hidden');
 }
 
@@ -1287,7 +1287,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Delete column confirm
-  document.getElementById('execDeleteCol')?.addEventListener('click', () => v2ExecuteDeleteColumn());
+  document.getElementById('execDeleteCol')?.addEventListener('click', async () => {
+    try {
+      await v2ExecuteDeleteColumn();
+    } catch (e) {
+      console.error('v2ExecuteDeleteColumn error:', e);
+      showToast('Đã xảy ra lỗi khi xóa cột: ' + e.message, 'error');
+    }
+  });
   document.getElementById('cancelDeleteCol')?.addEventListener('click', () => {
     _v2PendingDeleteId = null;
     document.getElementById('confirmDeleteCol').classList.add('hidden');
