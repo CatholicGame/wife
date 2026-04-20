@@ -997,7 +997,7 @@ function renderCustomFields(headers, existingData = null) {
 
   section.classList.remove('hidden');
 
-  const typeIcons = { text:'📔', number:'🔢', date:'📅', textarea:'📝', select:'🏷️', checkbox:'☑️' };
+  const typeIcons = { text:'📔', number:'🔢', date:'📅', datetime:'🕰️', textarea:'📝', select:'🏷️', checkbox:'☑️' };
 
   container.innerHTML = customCols.map(col => {
     const fieldId = `custom_field_${col.id}`;
@@ -1012,6 +1012,19 @@ function renderCustomFields(headers, existingData = null) {
       case 'date':
         input = `<input type="date" class="form-control" id="${fieldId}" data-custom-header="${col.headerName}" value="${currentVal}">`;
         break;
+      case 'datetime': {
+        // datetime-local không nhận định dạng lạ — chuẩn hóa về YYYY-MM-DDTHH:mm
+        let dtVal = '';
+        if (currentVal) {
+          try {
+            const d = new Date(currentVal);
+            if (!isNaN(d)) dtVal = d.toISOString().slice(0, 16);
+          } catch {} 
+          if (!dtVal) dtVal = currentVal.slice(0, 16); // fallback
+        }
+        input = `<input type="datetime-local" class="form-control" id="${fieldId}" data-custom-header="${col.headerName}" value="${dtVal}">`;
+        break;
+      }
       case 'textarea':
         input = `<textarea class="form-control" id="${fieldId}" data-custom-header="${col.headerName}" rows="3" placeholder="Nhập ghi chú…">${currentVal}</textarea>`;
         break;

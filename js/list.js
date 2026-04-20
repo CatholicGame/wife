@@ -397,7 +397,7 @@ function openColSettingsPanel() {
     red:     'rgba(231,76,60,0.6)',
   };
 
-  const TYPE_ICONS = { text:'📔', number:'🔢', date:'📅', textarea:'📝', select:'🏷️', checkbox:'☑️' };
+  const TYPE_ICONS = { text:'📔', number:'🔢', date:'📅', datetime:'🕰️', textarea:'📝', select:'🏷️', checkbox:'☑️' };
 
   // Build flat list HTML
   const itemsHtml = allCols.map((col) => {
@@ -634,7 +634,7 @@ function renderV2Table() {
     });
   }
 
-  const TYPE_ICONS = { text:'📔', number:'🔢', date:'📅', textarea:'📝', select:'🏷️', checkbox:'☑️' };
+  const TYPE_ICONS = { text:'📔', number:'🔢', date:'📅', datetime:'🕰️', textarea:'📝', select:'🏷️', checkbox:'☑️' };
 
   // Build header
   const thCells = cols.map((col) => {
