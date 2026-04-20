@@ -9,6 +9,17 @@ function showToast(msg, type = 'info', dur = 3000) {
   setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.2s'; setTimeout(() => t.remove(), 250); }, dur);
 }
 
+// Hiển thị avatar Google ở bottom nav
+function _setNavAvatar() {
+  const userInfo = Auth.getUserInfo();
+  const el = document.getElementById('navAvatarIcon');
+  if (!el || !userInfo?.picture) return;
+  el.innerHTML = `<img src="${userInfo.picture}"
+    style="width:26px;height:26px;border-radius:50%;object-fit:cover;
+           border:2px solid var(--accent);display:block;margin:auto"
+    referrerpolicy="no-referrer" alt="">`;
+}
+
 function getScoreColor(score) {
   const n = parseFloat(score);
   if (isNaN(n) || score === '') return '#8b949e';
@@ -113,6 +124,9 @@ async function initMap() {
     return;
   }
 
+  // Hiển thị avatar Google ở bottom nav
+  _setNavAvatar();
+
   const spreadsheetId = localStorage.getItem(APP_CONFIG.STORAGE.SPREADSHEET_ID);
   const sheetName = localStorage.getItem(APP_CONFIG.STORAGE.SHEET_NAME);
   if (!spreadsheetId || !sheetName) {
@@ -120,12 +134,62 @@ async function initMap() {
     return;
   }
 
-  // Init Leaflet
-  mapInstance = L.map('map', { zoomControl: true }).setView([10.7769, 106.7009], 12); // HCM
+  // Init Leaflet — default center HCM, will pan to real location below
+  mapInstance = L.map('map', { zoomControl: true }).setView([10.7769, 106.7009], 12);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap',
     maxZoom: 19,
   }).addTo(mapInstance);
+
+  // ── Auto-locate user ──────────────────────────────────────────
+  let userLocationMarker = null;
+
+  function panToUser(lat, lng, zoom = 14) {
+    mapInstance.setView([lat, lng], zoom);
+    if (userLocationMarker) userLocationMarker.remove();
+    const userIcon = L.divIcon({
+      className: '',
+      html: `<div style="
+        width:18px;height:18px;
+        background:#4285f4;
+        border:3px solid #fff;
+        border-radius:50%;
+        box-shadow:0 0 0 4px rgba(66,133,244,0.3);
+      "></div>`,
+      iconSize: [18, 18],
+      iconAnchor: [9, 9],
+    });
+    userLocationMarker = L.marker([lat, lng], { icon: userIcon, zIndexOffset: 1000 })
+      .addTo(mapInstance)
+      .bindPopup('<b>📍 Vị trí của bạn</b>')
+      .openPopup();
+  }
+
+  // Try to get real GPS
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => panToUser(pos.coords.latitude, pos.coords.longitude, 14),
+      () => showToast('Không lấy được vị trí GPS — hiển thị TP.HCM', 'info', 3000),
+      { timeout: 8000, maximumAge: 60000 }
+    );
+  }
+
+  // "Locate me" button in top-nav
+  const locateBtn = document.createElement('button');
+  locateBtn.className = 'nav-btn';
+  locateBtn.title = 'Về vị trí của tôi';
+  locateBtn.innerHTML = '📍';
+  locateBtn.style.cssText = 'font-size:1.2rem;padding:4px 8px;';
+  locateBtn.addEventListener('click', () => {
+    if (!navigator.geolocation) { showToast('Trình duyệt không hỗ trợ GPS', 'error'); return; }
+    showToast('Đang lấy vị trí…', 'info', 2000);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => panToUser(pos.coords.latitude, pos.coords.longitude, 16),
+      () => showToast('Không lấy được vị trí', 'error'),
+      { timeout: 8000 }
+    );
+  });
+  document.querySelector('.top-nav')?.appendChild(locateBtn);
 
   // Load data
   try {

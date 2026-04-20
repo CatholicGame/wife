@@ -397,11 +397,14 @@ function openColSettingsPanel() {
     red:     'rgba(231,76,60,0.6)',
   };
 
+  const TYPE_ICONS = { text:'📔', number:'🔢', date:'📅', textarea:'📝', select:'🏷️', checkbox:'☑️' };
+
   // Build flat list HTML
   const itemsHtml = allCols.map((col) => {
     const isHidden = hidden.has(col.id);
     const isSystem = col.system;
     const dot = GROUP_DOT[col.group] || GROUP_DOT.default;
+    const typeIcon = col.fieldType && TYPE_ICONS[col.fieldType] ? ` <span style="font-size:0.8rem;opacity:0.7" title="${col.fieldType}">${TYPE_ICONS[col.fieldType]}</span>` : '';
     return `
       <div class="col-toggle-item${isSystem ? ' col-toggle-system' : ''}"
            data-col-id="${col.id}"
@@ -410,7 +413,7 @@ function openColSettingsPanel() {
         <input type="checkbox" class="col-toggle-cb" data-col-id="${col.id}"
                ${!isHidden ? 'checked' : ''} ${isSystem ? 'disabled' : ''}>
         <span class="col-toggle-dot" style="background:${dot}"></span>
-        <span style="flex:1">${col.label}</span>
+        <span style="flex:1">${col.label}${typeIcon}</span>
       </div>`;
   }).join('');
 
@@ -631,13 +634,16 @@ function renderV2Table() {
     });
   }
 
+  const TYPE_ICONS = { text:'📔', number:'🔢', date:'📅', textarea:'📝', select:'🏷️', checkbox:'☑️' };
+
   // Build header
-  const thCells = cols.map((col, i) => {
+  const thCells = cols.map((col) => {
     const bg = V2_GROUP_BG[col.group] || V2_GROUP_BG.default;
     const deleteBtn = col.system
       ? ''
-      : '<button class="v2-col-delete" data-col-idx="' + i + '" title="Xóa cột">✕</button>';
-    return '<th style="background:' + bg + '"><div class="v2-th-wrap"><span>' + col.label + '</span>' + deleteBtn + '</div></th>';
+      : '<button class="v2-col-delete" data-col-idx="' + cols.indexOf(col) + '" title="Xóa cột">✕</button>';
+    const typeIcon = col.fieldType && TYPE_ICONS[col.fieldType] ? `<span style="margin-left:4px;font-size:0.8rem;opacity:0.7" title="${col.fieldType}">${TYPE_ICONS[col.fieldType]}</span>` : '';
+    return '<th style="background:' + bg + '"><div class="v2-th-wrap"><span style="display:inline-flex;align-items:center">' + col.label + typeIcon + '</span>' + deleteBtn + '</div></th>';
   }).join('');
 
   // Build body
@@ -699,8 +705,16 @@ function renderV2Table() {
   document.getElementById('btnAddColFromHeader')?.addEventListener('click', () => {
     document.getElementById('newColName').value = '';
     document.getElementById('newColGroup').value = 'default';
+    document.getElementById('newColType').value = 'text';
+    document.getElementById('newColOptions').value = '';
+    document.getElementById('newColOptionsGroup').classList.add('hidden');
     document.getElementById('addColModal').classList.remove('hidden');
     setTimeout(() => document.getElementById('newColName').focus(), 100);
+  });
+
+  // Show/hide options textarea when type = select
+  document.getElementById('newColType')?.addEventListener('change', (e) => {
+    document.getElementById('newColOptionsGroup')?.classList.toggle('hidden', e.target.value !== 'select');
   });
 
   // Delete column buttons
@@ -710,7 +724,7 @@ function renderV2Table() {
       const idx = parseInt(btn.dataset.colIdx);
       const col = cols[idx];
       if (!col) return;
-      v2RequestDeleteColumn(idx, col.label);
+      v2RequestDeleteColumn(col.id, col.label);
     });
   });
 
@@ -787,27 +801,38 @@ function renderV2Table() {
 }
 
 // ── V2: Delete column with custom confirm ─────────
-let _v2PendingDeleteIdx = null;
+let _v2PendingDeleteId = null;
 
-function v2RequestDeleteColumn(idx, colLabel) {
-  _v2PendingDeleteIdx = idx;
+function v2RequestDeleteColumn(colId, colLabel) {
+  _v2PendingDeleteId = colId;
   const msgEl = document.getElementById('confirmDeleteMsg');
   if (msgEl) msgEl.innerHTML = 'Cột <strong style="color:var(--accent)">\u201C' + colLabel + '\u201D</strong> sẽ bị xóa khỏi bảng V2.<br>Thao tác này không ảnh hưởng đến Google Sheet.';
   document.getElementById('confirmDeleteCol').classList.remove('hidden');
 }
 
 function v2ExecuteDeleteColumn() {
-  if (_v2PendingDeleteIdx === null) return;
+  if (!_v2PendingDeleteId) return;
   const cols = getV2Columns();
-  const removed = cols.splice(_v2PendingDeleteIdx, 1);
-  saveV2Columns(cols);
-  _v2PendingDeleteIdx = null;
+  const realIdx = cols.findIndex(c => c.id === _v2PendingDeleteId);
+  if (realIdx >= 0) {
+    const removed = cols.splice(realIdx, 1);
+    saveV2Columns(cols);
+
+    // Ghi nhớ cột đã bị user xóa để form.js không hiển thị lại dưới dạng "Thông tin khác"
+    if (removed[0].headerName) {
+      let delCols = JSON.parse(localStorage.getItem('bds_user_deleted_cols') || '[]');
+      if (!delCols.includes(removed[0].headerName)) delCols.push(removed[0].headerName);
+      localStorage.setItem('bds_user_deleted_cols', JSON.stringify(delCols));
+    }
+
+    showToast('Đã xóa cột "' + (removed[0]?.label || '') + '"', 'success');
+  }
+  _v2PendingDeleteId = null;
   document.getElementById('confirmDeleteCol').classList.add('hidden');
-  showToast('Đã xóa cột "' + (removed[0]?.label || '') + '"', 'success');
   renderV2Table();
 }
 
-async function v2AddColumn(name, group) {
+async function v2AddColumn(name, group, fieldType = 'text', options = []) {
   const spreadsheetId = localStorage.getItem(APP_CONFIG.STORAGE.SPREADSHEET_ID);
   const sheetName = localStorage.getItem(APP_CONFIG.STORAGE.SHEET_NAME);
 
@@ -823,13 +848,18 @@ async function v2AddColumn(name, group) {
     }
   }
 
-  // Lưu vào V2 config với headerName để map dữ liệu
+  // Lưu vào V2 config với headerName + fieldType để map dữ liệu
   const cols = getV2Columns();
   const id = 'custom_' + Date.now();
-  cols.push({ id, label: name, group: group || 'default', custom: true, headerName: name });
+  cols.push({ id, label: name, group: group || 'default', custom: true, headerName: name, fieldType, options });
   saveV2Columns(cols);
 
-  showToast('Đã thêm cột "' + name + '" vào Sheet ✓', 'success');
+  // Xóa khỏi danh sách đã xóa nếu bị trùng tên
+  let delCols = JSON.parse(localStorage.getItem('bds_user_deleted_cols') || '[]');
+  delCols = delCols.filter(h => h !== name);
+  localStorage.setItem('bds_user_deleted_cols', JSON.stringify(delCols));
+
+  showToast(`Đã thêm cột "${name}" (${fieldType}) vào Sheet ✓`, 'success');
 
   // Reload data từ Sheet để cập nhật headers mới
   SheetsAPI.invalidateCache();
@@ -859,6 +889,19 @@ async function loadData(forceRefresh = false) {
   try {
     const { headers, rows } = await SheetsAPI.getCachedRows(spreadsheetId, sheetName, forceRefresh);
     State.headers = headers;
+    
+    // Tự động dọn dẹp các cột custom đã bị xóa khỏi Google Sheet (khi sync)
+    const currentCols = getV2Columns();
+    let colsChanged = false;
+    const prunedCols = currentCols.filter(col => {
+      if (col.custom && col.headerName && !headers.includes(col.headerName)) {
+        colsChanged = true;
+        return false;
+      }
+      return true;
+    });
+    if (colsChanged) saveV2Columns(prunedCols);
+
     State.rows = rows; // lưu để dùng trong ColMapper
     State.colMap = buildColMap(headers);
     State.allRows = rows.filter((r) => {
@@ -973,7 +1016,6 @@ function showLoginScreen() {
   document.getElementById('connectBanner').classList.add('hidden');
   document.getElementById('mainContent').classList.add('hidden');
   document.getElementById('fabAdd').classList.add('hidden');
-  document.getElementById('sheetInfoBar').classList.add('hidden');
   document.getElementById('btnSetupCols')?.classList.add('hidden');
   document.getElementById('btnChangeSheet')?.classList.add('hidden');
   document.getElementById('aiFabBtn')?.classList.add('hidden');
@@ -1008,15 +1050,11 @@ function showUI() {
   document.getElementById('connectBanner').classList.add('hidden');
   document.getElementById('mainContent').classList.remove('hidden');
   document.getElementById('fabAdd').classList.remove('hidden');
-  document.getElementById('sheetInfoBar').classList.remove('hidden');
   document.getElementById('btnSetupCols')?.classList.remove('hidden');
   document.getElementById('btnChangeSheet')?.classList.remove('hidden');
   document.getElementById('aiFabBtn')?.classList.remove('hidden');
   // Hiển thị bottom nav cố định khi vào màn hình chính
   document.getElementById('bottomNav')?.classList.remove('hidden');
-
-  const sheetName = localStorage.getItem(APP_CONFIG.STORAGE.SPREADSHEET_NAME);
-  if (sheetName) document.getElementById('sheetNameLabel').textContent = sheetName;
 
   const userInfo = Auth.getUserInfo();
   if (userInfo) {
@@ -1211,9 +1249,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('confirmAddCol')?.addEventListener('click', () => {
     const name = document.getElementById('newColName').value.trim();
     if (!name) { showToast('Vui lòng nhập tên cột', 'warning'); return; }
-    const group = document.getElementById('newColGroup').value;
+    const group      = document.getElementById('newColGroup').value;
+    const fieldType  = document.getElementById('newColType')?.value || 'text';
+    const optionsRaw = document.getElementById('newColOptions')?.value || '';
+    const options    = fieldType === 'select'
+      ? optionsRaw.split('\n').map(s => s.trim()).filter(Boolean)
+      : [];
     document.getElementById('addColModal').classList.add('hidden');
-    v2AddColumn(name, group);
+    v2AddColumn(name, group, fieldType, options);
   });
   document.getElementById('cancelAddCol')?.addEventListener('click', () => {
     document.getElementById('addColModal').classList.add('hidden');
@@ -1225,12 +1268,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Delete column confirm
   document.getElementById('execDeleteCol')?.addEventListener('click', () => v2ExecuteDeleteColumn());
   document.getElementById('cancelDeleteCol')?.addEventListener('click', () => {
-    _v2PendingDeleteIdx = null;
+    _v2PendingDeleteId = null;
     document.getElementById('confirmDeleteCol').classList.add('hidden');
   });
   document.getElementById('confirmDeleteCol')?.addEventListener('click', (e) => {
     if (e.target === e.currentTarget) {
-      _v2PendingDeleteIdx = null;
+      _v2PendingDeleteId = null;
       document.getElementById('confirmDeleteCol').classList.add('hidden');
     }
   });

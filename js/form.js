@@ -689,7 +689,7 @@ window.deletePhotoFromGallery = async function(photoId, event) {
   event.preventDefault();
   event.stopPropagation();
   
-  if (!await showConfirm('Xóa ảnh này?', 'Nó sẽ bị xóa vĩnh viễn khỏi Google Drive và BĐS này.', true)) return;
+  if (!await showConfirm('Xóa ảnh này?', 'Nó sẽ bị xóa vĩnh viễn khỏi Google Drive.', true)) return;
   
   try {
     showToast('Đang xóa ảnh...', 'info', 1000);
@@ -699,21 +699,51 @@ window.deletePhotoFromGallery = async function(photoId, event) {
     const el = document.getElementById('photo-' + photoId);
     if (el) el.remove();
     
-    // Remove from CSV
+    // Remove from CSV field
     let csvField = document.querySelector('[data-header="Ảnh"]') || document.getElementById('field_PHOTOS');
+    let newCsv = '';
     if (csvField) {
       let urls = csvField.value.split(',').filter(u => u.trim() !== '');
       urls = urls.filter(url => !url.includes(photoId));
-      csvField.value = urls.join(',');
+      newCsv = urls.join(',');
+      csvField.value = newCsv;
       
-      // Update counts
+      // Update count badge + field
       const countInput = document.getElementById('field_PHOTO_COUNT');
       if (countInput) countInput.value = urls.length;
       const countBadge = document.getElementById('photoCountBadge');
       if (countBadge) countBadge.textContent = `${urls.length} ảnh`;
     }
     
-    showToast('Đã xóa ảnh, hãy lưu form để cập nhật.', 'success');
+    // ── Auto-save PHOTOS & PHOTO_COUNT cells to Sheet ──────────
+    if (FormState.mode === 'edit' && FormState.rowIndex) {
+      try {
+        const spreadsheetId = localStorage.getItem(APP_CONFIG.STORAGE.SPREADSHEET_ID);
+        const sheetName    = localStorage.getItem(APP_CONFIG.STORAGE.SHEET_NAME);
+        
+        if (spreadsheetId && sheetName && FormState.colMap) {
+          const photosCol   = FormState.colMap['PHOTOS'];
+          const countCol    = FormState.colMap['PHOTO_COUNT'];
+          const countVal    = parseInt(document.getElementById('field_PHOTO_COUNT')?.value || '0');
+          
+          const tasks = [];
+          if (photosCol)   tasks.push(SheetsAPI.updateCell(spreadsheetId, sheetName, FormState.rowIndex, photosCol.index, newCsv));
+          if (countCol)    tasks.push(SheetsAPI.updateCell(spreadsheetId, sheetName, FormState.rowIndex, countCol.index, countVal));
+          
+          await Promise.all(tasks);
+          SheetsAPI.invalidateCache(); // buộc danh sách reload
+          showToast('Đã xóa ảnh và cập nhật dữ liệu ✓', 'success');
+        } else {
+          showToast('Đã xóa ảnh (lưu form để cập nhật Sheet)', 'warning');
+        }
+      } catch (saveErr) {
+        console.error('Auto-save photo URL error:', saveErr);
+        showToast('Đã xóa ảnh nhưng chưa lưu được Sheet: ' + saveErr.message, 'warning');
+      }
+    } else {
+      // Chế độ thêm mới — Sheet chưa có row → không cần auto-save
+      showToast('Đã xóa ảnh ✓', 'success');
+    }
   } catch (err) {
     showToast('Lỗi xóa ảnh: ' + err.message, 'error');
   }
@@ -891,7 +921,13 @@ function renderDynamicFields(headers, colMap) {
     return RATINGS.some(r => r.fieldHints.some(hint => s.includes(hint)));
   };
   
-  const unmapped = headers.filter((h, i) => !mappedIndices.has(i) && !isRatingCol(h));
+  // Lấy tên các custom col để tránh render trùng
+  const customColNames = new Set(_getCustomCols().map(c => c.headerName || c.label));
+  const userDeletedCols = new Set(JSON.parse(localStorage.getItem('bds_user_deleted_cols') || '[]'));
+  
+  const unmapped = headers.filter((h, i) =>
+    !mappedIndices.has(i) && !isRatingCol(h) && !customColNames.has(h) && !userDeletedCols.has(h)
+  );
 
   if (unmapped.length === 0) return;
 
@@ -906,6 +942,108 @@ function renderDynamicFields(headers, colMap) {
       <input type="text" class="form-control" data-header="${h}" placeholder="${h}…">
     </div>
   `).join('');
+}
+
+// ─── Custom columns (từ V2 col config) ────────────────────────────────────────
+const V2_COLS_STORAGE_KEY = (() => {
+  // Lấy key giống list.js (version hiện tại)
+  try {
+    const raw = Object.keys(localStorage).find(k => k.startsWith('bds_v2_cols'));
+    return raw || 'bds_v2_cols_v2_col_v5';
+  } catch { return 'bds_v2_cols_v2_col_v5'; }
+})();
+
+function _getCustomCols() {
+  try {
+    // Tìm key nào chứa v2_cols trong localStorage
+    const key = Object.keys(localStorage).find(k => k.includes('v2_col'));
+    if (!key) return [];
+    const cols = JSON.parse(localStorage.getItem(key) || '[]');
+    return cols.filter(c => c.custom === true && c.headerName);
+  } catch { return []; }
+}
+
+/**
+ * Render các trường nhập liệu cho custom columns vào section #customFieldsSection
+ * existingData: object row data (edit mode) hoặc null (add mode)
+ */
+function renderCustomFields(headers, existingData = null) {
+  const section = document.getElementById('customFieldsSection');
+  const container = document.getElementById('customFieldsContainer');
+  if (!section || !container) return;
+
+  const customCols = _getCustomCols().filter(c => headers.includes(c.headerName));
+  if (customCols.length === 0) { section.classList.add('hidden'); return; }
+
+  section.classList.remove('hidden');
+
+  const typeIcons = { text:'📔', number:'🔢', date:'📅', textarea:'📝', select:'🏷️', checkbox:'☑️' };
+
+  container.innerHTML = customCols.map(col => {
+    const fieldId = `custom_field_${col.id}`;
+    const currentVal = existingData ? (existingData[col.headerName] || '') : '';
+    const icon = typeIcons[col.fieldType] || '📔';
+
+    let input = '';
+    switch (col.fieldType) {
+      case 'number':
+        input = `<input type="number" class="form-control" id="${fieldId}" data-custom-header="${col.headerName}" value="${currentVal}" placeholder="Nhập số…">`;
+        break;
+      case 'date':
+        input = `<input type="date" class="form-control" id="${fieldId}" data-custom-header="${col.headerName}" value="${currentVal}">`;
+        break;
+      case 'textarea':
+        input = `<textarea class="form-control" id="${fieldId}" data-custom-header="${col.headerName}" rows="3" placeholder="Nhập ghi chú…">${currentVal}</textarea>`;
+        break;
+      case 'select': {
+        const opts = (col.options || []).map(o =>
+          `<option value="${o}"${currentVal === o ? ' selected' : ''}>${o}</option>`
+        ).join('');
+        input = `<select class="form-control" id="${fieldId}" data-custom-header="${col.headerName}">
+          <option value="">— Chọn —</option>${opts}
+        </select>`;
+        break;
+      }
+      case 'checkbox':
+        input = `<label style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer">
+          <input type="checkbox" id="${fieldId}" data-custom-header="${col.headerName}"${currentVal === 'true' || currentVal === '1' || currentVal === 'Có' ? ' checked' : ''}
+            style="width:18px;height:18px;accent-color:var(--accent)">
+          <span style="font-size:0.9rem">${currentVal === 'true' || currentVal === '1' || currentVal === 'Có' ? 'Có' : 'Không'}</span>
+        </label>`;
+        break;
+      default: // text
+        input = `<input type="text" class="form-control" id="${fieldId}" data-custom-header="${col.headerName}" value="${currentVal}" placeholder="Nhập ${col.label}…">`;
+    }
+
+    return `<div class="form-group">
+      <label class="form-label">${icon} ${col.label}</label>
+      ${input}
+    </div>`;
+  }).join('');
+
+  // Checkbox label live update
+  container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const span = cb.parentElement.querySelector('span');
+      if (span) span.textContent = cb.checked ? 'Có' : 'Không';
+    });
+  });
+}
+
+/**
+ * Thu thập giá trị các custom fields và ghi vào mảng values
+ */
+function collectCustomFieldValues(headers, values) {
+  document.querySelectorAll('[data-custom-header]').forEach(el => {
+    const header = el.dataset.customHeader;
+    const idx = headers.indexOf(header);
+    if (idx < 0) return;
+    if (el.type === 'checkbox') {
+      values[idx] = el.checked ? 'Có' : 'Không';
+    } else {
+      values[idx] = (el.value || '').trim();
+    }
+  });
 }
 
 // ─── Build row array from form ─────────────────────────────────────────────────
@@ -991,6 +1129,9 @@ function buildRowValues(headers, colMap) {
     const idx = headers.findIndex((h) => hints.some((hint) => normalized(h).includes(hint)));
     if (idx >= 0 && !values[idx]) values[idx] = el.value.trim();
   });
+
+  // Custom field values (cột tùy chỉnh do user thêm)
+  collectCustomFieldValues(headers, values);
 
   return values;
 }
@@ -1089,6 +1230,9 @@ function prefillForm(rowData, headers, colMap) {
   document.querySelectorAll('[data-header]').forEach((input) => {
     input.value = rowData[input.dataset.header] || '';
   });
+
+  // Custom fields prefill (sau khi renderCustomFields đã tạo DOM)
+  renderCustomFields(headers, rowData);
 
   // Extra non-mapped fields (cố gắng prefill từ các cột tương ứng)
   const extra = {
@@ -1300,6 +1444,7 @@ async function initForm() {
       FormState.headers = headers;
       FormState.colMap = colMap;
       renderDynamicFields(headers, FormState.colMap);
+      renderCustomFields(headers, rowObj);
       prefillForm(rowObj, headers, FormState.colMap);
     } else if (spreadsheetId && sheetName) {
       // Fallback: lấy headers từ cache
@@ -1318,6 +1463,7 @@ async function initForm() {
         FormState.headers = headers;
         FormState.colMap = colMap;
         renderDynamicFields(headers, FormState.colMap);
+        renderCustomFields(headers, rowObj);
         prefillForm(rowObj, headers, FormState.colMap);
       } catch (err) {
         console.error('Load headers error:', err);
@@ -1344,6 +1490,7 @@ async function initForm() {
         FormState.headers = headers;
         FormState.colMap = colMap;
         renderDynamicFields(headers, FormState.colMap);
+        renderCustomFields(headers, null);
         
         // Setup hidden PHOTOS field
         let fieldPhotos = document.getElementById('field_PHOTOS');

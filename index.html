@@ -403,18 +403,12 @@
 <body>
 
 <!-- ── Top Navigation ── -->
-<nav class="top-nav" style="justify-content: center; position: relative;">
+<nav class="top-nav" style="justify-content: center;">
   <a href="index.html" class="nav-logo">
     <span class="logo-icon">🏠</span>
     <span>BĐS <span class="logo-text">Khảo Sát</span></span>
   </a>
 </nav>
-
-<!-- ── Sheet Info Bar (chỉ hiện tên sheet) ── -->
-<div class="sheet-info-bar hidden" id="sheetInfoBar">
-  <span>📊</span>
-  <span class="sheet-name" id="sheetNameLabel">—</span>
-</div>
 
 <!-- ── Login Screen ── -->
 <div id="loginScreen" class="login-screen" style="display:none">
@@ -507,10 +501,28 @@
     <h3 style="margin-bottom:var(--space-2);display:flex;align-items:center;gap:var(--space-2)">
       <span>➕</span> Thêm cột mới
     </h3>
-    <p class="text-muted text-small" style="margin-bottom:var(--space-5)">Thêm một cột tùy chỉnh vào bảng V2. Cột sẽ được lưu trên trình duyệt.</p>
+    <p class="text-muted text-small" style="margin-bottom:var(--space-5)">Cột sẽ được thêm vào Google Sheet và tự động xuất hiện trong form nhập liệu.</p>
     <div class="form-group" style="margin-bottom:var(--space-4)">
       <label class="form-label">Tên cột <span class="required">*</span></label>
       <input type="text" class="form-control" id="newColName" placeholder="VD: Ghi chú thêm, Hoa hồng…" autocomplete="off">
+    </div>
+    <div class="form-group" style="margin-bottom:var(--space-4)">
+      <label class="form-label">📐 Kiểu dữ liệu</label>
+      <select class="form-control" id="newColType">
+        <option value="text">📔 Văn bản (text)</option>
+        <option value="number">🔢 Số (number)</option>
+        <option value="date">📅 Ngày (date)</option>
+        <option value="textarea">📝 Ghi chú dài (textarea)</option>
+        <option value="select">🏷️ Danh sách chọn (select)</option>
+        <option value="checkbox">☑️ Có/Không (checkbox)</option>
+      </select>
+    </div>
+    <div class="form-group hidden" id="newColOptionsGroup" style="margin-bottom:var(--space-4)">
+      <label class="form-label">Các tùy chọn <span class="text-muted">(mỗi dòng 1 giá trị)</span></label>
+      <textarea class="form-control" id="newColOptions" rows="4" placeholder="VD:
+Tốt
+Bình thường
+Xấu"></textarea>
     </div>
     <div class="form-group" style="margin-bottom:var(--space-4)">
       <label class="form-label">Nhóm màu</label>

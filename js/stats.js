@@ -8,6 +8,17 @@ function showToast(msg, type = 'info') {
   setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.2s'; setTimeout(() => t.remove(), 250); }, 3000);
 }
 
+// Hiển thị avatar Google ở bottom nav
+function _setNavAvatar() {
+  const userInfo = Auth.getUserInfo();
+  const el = document.getElementById('navAvatarIcon');
+  if (!el || !userInfo?.picture) return;
+  el.innerHTML = `<img src="${userInfo.picture}"
+    style="width:26px;height:26px;border-radius:50%;object-fit:cover;
+           border:2px solid var(--accent);display:block;margin:auto"
+    referrerpolicy="no-referrer" alt="">`;
+}
+
 // Chart.js global defaults (dark theme)
 function configureChartDefaults() {
   Chart.defaults.color = '#8b949e';
@@ -194,6 +205,9 @@ async function initStats() {
     setTimeout(() => (window.location.href = 'index.html'), 1500);
     return;
   }
+
+  // Hiển thị avatar Google ở bottom nav
+  _setNavAvatar();
 
   const spreadsheetId = localStorage.getItem(APP_CONFIG.STORAGE.SPREADSHEET_ID);
   const sheetName = localStorage.getItem(APP_CONFIG.STORAGE.SHEET_NAME);
