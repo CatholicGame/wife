@@ -192,6 +192,36 @@ const SheetsAPI = (() => {
   }
 
   /**
+   * Xóa một cột vật lý trên Google Sheet
+   */
+  async function deleteColumn(spreadsheetId, sheetName, colIndex, sheetId) {
+    const hdrs = await authHeaders();
+    if (sheetId === undefined) {
+      sheetId = await getSheetId(spreadsheetId, sheetName);
+      if (sheetId === undefined) throw new Error('Không tìm thấy sheetId để xóa cột');
+    }
+    const url = `${BASE}/${spreadsheetId}:batchUpdate`;
+    const body = {
+      requests: [{
+        deleteDimension: {
+          range: {
+            sheetId: sheetId,
+            dimension: 'COLUMNS',
+            startIndex: colIndex,
+            endIndex: colIndex + 1,
+          },
+        },
+      }],
+    };
+    const r = await fetch(url, { method: 'POST', headers: hdrs, body: JSON.stringify(body) });
+    if (!r.ok) {
+       const err = await r.text();
+       throw new Error(`Delete column error: ${r.status} - ${err}`);
+    }
+    return await r.json();
+  }
+
+  /**
    * Lấy sheetId số (dùng cho deleteRow vật lý)
    */
   async function getSheetId(spreadsheetId, sheetName) {
@@ -299,11 +329,15 @@ const SheetsAPI = (() => {
     updateRow,
     updateCell,
     deleteRow,
+    deleteColumn,
     getSheetId,
     getCachedRows,
-    invalidateCache,
     addColumnHeader,
     colIndexToLetter,
+    invalidateCache,
+    isGoogleSheetsUrl,
+    extractIdFromUrl,
+    extractGidFromUrl
   };
 })();
 

@@ -810,19 +810,40 @@ function v2RequestDeleteColumn(colId, colLabel) {
   document.getElementById('confirmDeleteCol').classList.remove('hidden');
 }
 
-function v2ExecuteDeleteColumn() {
+async function v2ExecuteDeleteColumn() {
   if (!_v2PendingDeleteId) return;
   const cols = getV2Columns();
   const realIdx = cols.findIndex(c => c.id === _v2PendingDeleteId);
   if (realIdx >= 0) {
+    const colToDelete = cols[realIdx];
     const removed = cols.splice(realIdx, 1);
     saveV2Columns(cols);
 
     // Ghi nhớ cột đã bị user xóa để form.js không hiển thị lại dưới dạng "Thông tin khác"
-    if (removed[0].headerName) {
+    if (colToDelete.headerName) {
       let delCols = JSON.parse(localStorage.getItem('bds_user_deleted_cols') || '[]');
-      if (!delCols.includes(removed[0].headerName)) delCols.push(removed[0].headerName);
+      if (!delCols.includes(colToDelete.headerName)) delCols.push(colToDelete.headerName);
       localStorage.setItem('bds_user_deleted_cols', JSON.stringify(delCols));
+      
+      // THỰC TẾ XÓA CỘT TRÊN GOOGLE SHEET
+      try {
+        const spreadsheetId = localStorage.getItem(APP_CONFIG.STORAGE.SPREADSHEET_ID);
+        const sheetName = localStorage.getItem(APP_CONFIG.STORAGE.SHEET_NAME);
+        if (spreadsheetId && sheetName && State.headers) {
+           const targetHeader = colToDelete.headerName.toLowerCase().trim();
+           const sheetColIndex = State.headers.findIndex(h => h && h.toLowerCase().trim() === targetHeader);
+           if (sheetColIndex >= 0) {
+              showToast('Đang xóa vật lý cột trên Sheet...', 'info');
+              const sheetIdNum = await SheetsAPI.getSheetId(spreadsheetId, sheetName);
+              await SheetsAPI.deleteColumn(spreadsheetId, sheetName, sheetColIndex, sheetIdNum);
+              SheetsAPI.invalidateCache();
+              loadData(true); // reload table fully
+           }
+        }
+      } catch (e) {
+        console.error('Lỗi xóa cột trên Sheet:', e);
+        showToast('Đã ẩn cột, nhưng lỗi xóa vật lý: ' + e.message, 'error');
+      }
     }
 
     showToast('Đã xóa cột "' + (removed[0]?.label || '') + '"', 'success');
