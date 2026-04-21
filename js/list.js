@@ -173,9 +173,9 @@ function renderCard(row) {
 // ─── Filter & Sort ────────────────────────────────────────────────────────────
 
 function updateFilterUI(isBDS) {
-  const filterRow = document.getElementById('filterRow');
-  if (filterRow) {
-    filterRow.style.display = isBDS ? '' : 'none';
+  const btnAdvancedFilter = document.getElementById('btnAdvancedFilter');
+  if (btnAdvancedFilter) {
+    btnAdvancedFilter.style.display = isBDS ? '' : 'none';
   }
 
   const searchInput = document.getElementById('searchInput');
@@ -226,13 +226,27 @@ function applyFiltersAndSort() {
     });
   }
 
-  // Type & Status filters
+  // Type & Status & Price filters
   if (isBDS) {
-    if (State.activeFilter && State.activeFilter !== 'all') {
-      rows = rows.filter((r) => colVal(r, 'TYPE') === State.activeFilter);
+    const af = State.advancedFilter || { type: 'all', price: 'all', status: 'all' };
+
+    if (af.type && af.type !== 'all') {
+      rows = rows.filter((r) => colVal(r, 'TYPE') === af.type);
     }
-    if (State.activeStatus) {
-      rows = rows.filter((r) => colVal(r, 'STATUS') === State.activeStatus);
+    if (af.status && af.status !== 'all') {
+      rows = rows.filter((r) => colVal(r, 'STATUS') === af.status);
+    }
+    if (af.price && af.price !== 'all') {
+      rows = rows.filter((r) => {
+        const p = parseFloat(colVal(r, 'PRICE'));
+        if (isNaN(p)) return false; // Ignore item if no price but price filter active
+
+        if (af.price === '0-3') return p < 3;
+        if (af.price === '3-5') return p >= 3 && p <= 5;
+        if (af.price === '5-10') return p > 5 && p <= 10;
+        if (af.price === '10-999') return p > 10;
+        return true;
+      });
     }
   }
 
@@ -1407,21 +1421,49 @@ function debounce(fn, ms) {
 document.addEventListener('DOMContentLoaded', () => {
   // (View toggle removed — chỉ dùng V2 table)
 
-  // Filter chips
-  document.getElementById('filterRow')?.addEventListener('click', (e) => {
-    const chip = e.target.closest('.filter-chip');
-    if (!chip) return;
-    document.querySelectorAll('.filter-chip').forEach((c) => c.classList.remove('active'));
-    chip.classList.add('active');
-    if (chip.dataset.filter) {
-      State.activeFilter = chip.dataset.filter;
-      State.activeStatus = null;
-    } else if (chip.dataset.status) {
-      State.activeFilter = 'all';
-      State.activeStatus = chip.dataset.status;
-    }
+  // Advanced Filter Modal Logic
+  State.advancedFilter = { type: 'all', price: 'all', status: 'all' };
+
+  const btnAdv = document.getElementById('btnAdvancedFilter');
+  const advModal = document.getElementById('advancedFilterModal');
+  const typeSel = document.getElementById('filterType');
+  const priceSel = document.getElementById('filterPrice');
+  const statusSel = document.getElementById('filterStatus');
+
+  btnAdv?.addEventListener('click', () => {
+    // Sync current state to UI
+    typeSel.value = State.advancedFilter.type;
+    priceSel.value = State.advancedFilter.price;
+    statusSel.value = State.advancedFilter.status;
+    advModal.classList.remove('hidden');
+  });
+
+  document.getElementById('btnCloseFilter')?.addEventListener('click', () => {
+    advModal.classList.add('hidden');
+  });
+  
+  document.getElementById('btnClearFilter')?.addEventListener('click', () => {
+    typeSel.value = 'all';
+    priceSel.value = 'all';
+    statusSel.value = 'all';
+  });
+
+  document.getElementById('btnApplyFilter')?.addEventListener('click', () => {
+    State.advancedFilter = {
+      type: typeSel.value,
+      price: priceSel.value,
+      status: statusSel.value
+    };
+    advModal.classList.add('hidden');
     applyFiltersAndSort();
     renderList();
+    
+    // Highlight button if active filter differs from default
+    if (State.advancedFilter.type !== 'all' || State.advancedFilter.price !== 'all' || State.advancedFilter.status !== 'all') {
+      btnAdv.classList.add('badge-accent');
+    } else {
+      btnAdv.classList.remove('badge-accent');
+    }
   });
 
   // FAB – route to BĐS form or generic form based on current workspace

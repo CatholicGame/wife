@@ -798,16 +798,7 @@
       <div class="search-bar">
         <span class="search-icon">🔍</span>
         <input type="search" id="searchInput" placeholder="Tìm địa chỉ, quận, đầu chủ…" autocomplete="off">
-        <button class="btn btn-ghost btn-sm" id="btnFilter" style="padding:2px 6px">⚙️</button>
-      </div>
-      <div class="filter-row" id="filterRow">
-        <button class="filter-chip active" data-filter="all">Tất cả</button>
-        <button class="filter-chip" data-filter="Nhà tầng">Nhà tầng</button>
-        <button class="filter-chip" data-filter="Đất">Đất</button>
-        <button class="filter-chip" data-filter="Căn hộ">Căn hộ</button>
-        <button class="filter-chip" data-filter="Biệt thự">Biệt thự</button>
-        <button class="filter-chip" data-status="Tiềm năng">⭐ Tiềm năng</button>
-        <button class="filter-chip" data-status="Đã chốt">✅ Đã chốt</button>
+        <button class="btn btn-ghost btn-sm" id="btnAdvancedFilter" style="padding:4px 8px; font-weight: 500;">Lọc ▾</button>
       </div>
     </div>
 
@@ -1054,6 +1045,57 @@ Xấu"></textarea>
       <div style="display:flex; justify-content:flex-end; gap:var(--space-3)">
         <button class="btn btn-secondary" onclick="document.getElementById('smartCopyModal').classList.add('hidden')">Đóng</button>
         <button class="btn btn-primary hidden" id="btnConfirmCopy">📋 Copy bài viết</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Advanced Filter Modal ── -->
+  <div id="advancedFilterModal" class="modal-backdrop hidden">
+    <div class="modal-sheet" style="max-height: 85vh; display: flex; flex-direction: column;">
+      <div class="modal-header">
+        <h3 style="margin:0; font-size:1.1rem">Bộ Lọc Mở Rộng</h3>
+        <button class="btn btn-ghost btn-sm" id="btnCloseFilter">✕</button>
+      </div>
+      <div class="modal-body" style="padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); overflow-y: auto;">
+        
+        <div>
+          <label style="display:block; font-size:0.85rem; font-weight:600; color:var(--text-secondary); margin-bottom:8px">Loại Bất Động Sản</label>
+          <select id="filterType" class="form-input" style="width: 100%; appearance: auto; background-color: var(--bg-input);">
+            <option value="all">Tất cả</option>
+            <option value="Nhà tầng">Nhà tầng</option>
+            <option value="Đất">Đất</option>
+            <option value="Căn hộ">Căn hộ chung cư</option>
+            <option value="Biệt thự">Biệt thự</option>
+            <option value="Nhà cấp 4">Nhà cấp 4</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="display:block; font-size:0.85rem; font-weight:600; color:var(--text-secondary); margin-bottom:8px">Khoảng Giá</label>
+          <select id="filterPrice" class="form-input" style="width: 100%; appearance: auto; background-color: var(--bg-input);">
+            <option value="all">Mọi mức giá</option>
+            <option value="0-3">Dưới 3 Tỷ</option>
+            <option value="3-5">Từ 3 - 5 Tỷ</option>
+            <option value="5-10">Từ 5 - 10 Tỷ</option>
+            <option value="10-999">Trên 10 Tỷ</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="display:block; font-size:0.85rem; font-weight:600; color:var(--text-secondary); margin-bottom:8px">Trạng Thái Khảo Sát</label>
+          <select id="filterStatus" class="form-input" style="width: 100%; appearance: auto; background-color: var(--bg-input);">
+            <option value="all">Tất cả trạng thái</option>
+            <option value="Tiềm năng">⭐ Tiềm năng</option>
+            <option value="Đang xem xét">🔍 Đang xem xét</option>
+            <option value="Đã chốt">✅ Đã chốt</option>
+            <option value="Bỏ qua">❌ Bỏ qua</option>
+          </select>
+        </div>
+
+      </div>
+      <div style="padding: var(--space-3) var(--space-4); border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end;">
+        <button class="btn btn-ghost" id="btnClearFilter">Thiết lập lại</button>
+        <button class="btn btn-primary" id="btnApplyFilter">Áp dụng</button>
       </div>
     </div>
   </div>
