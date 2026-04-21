@@ -52,8 +52,8 @@ const APP_CONFIG = {
   KNOWN_COLUMNS: {
     ID:       ['stt', 'id', 'mã', 'ma', 'số thứ tự'],
     DATE:     ['ngày khảo sát', 'ngay khao sat', 'ngày', 'ngay', 'date'],
-    // "Thông tin chung" = cột tóm tắt tổng hợp
-    NOTES:    ['thông tin chung', 'thong tin chung', 'ghi chú', 'ghi chu', 'notes', 'note', 'nhận xét', 'nhan xet'],
+    // "Thông tin chung" / "Tiêu đề" = cột tóm tắt tổng hợp
+    NOTES:    ['tiêu đề', 'tieu de', 'thông tin chung', 'thong tin chung', 'ghi chú', 'ghi chu', 'notes', 'note', 'nhận xét', 'nhan xet'],
     // TYPE: "Loại BDS (nhà/đất/căn hộ)"
     TYPE:     ['loại bds', 'loai bds', 'loại bđs', 'loai bđs', 'loại', 'loai', 'type',
                'loại bất động sản', 'loai bat dong san', 'loại nhà'],

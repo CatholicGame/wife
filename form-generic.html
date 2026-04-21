@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1117">
+  <title>Thêm dòng mới – Generic Form</title>
+  <script src="js/theme.js"></script>
+  <link rel="stylesheet" href="css/app.css">
+  <style>
+    body {
+      padding-top: var(--nav-height);
+      padding-bottom: calc(var(--bottom-nav-height) + 80px);
+    }
+
+    /* ── Form Layout ── */
+    .gform-container {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: var(--space-4) var(--space-4) var(--space-8);
+    }
+
+    .gform-header {
+      margin-bottom: var(--space-5);
+    }
+
+    .gform-title {
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .gform-subtitle {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+    }
+
+    /* ── Fields Grid (2-col on large screens) ── */
+    #gFormFields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-4) var(--space-5);
+    }
+
+    @media (max-width: 540px) {
+      #gFormFields { grid-template-columns: 1fr; }
+    }
+
+    .gform-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* textareas span full width */
+    .gform-field:has(textarea) {
+      grid-column: 1 / -1;
+    }
+
+    .gform-field .form-control {
+      width: 100%;
+    }
+
+    /* ── Action bar (sticky bottom) ── */
+    .gform-actions {
+      position: sticky;
+      bottom: 0;
+      background: rgba(13, 17, 23, 0.96);
+      backdrop-filter: blur(12px);
+      border-top: 1px solid var(--border);
+      padding: var(--space-3) var(--space-4);
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--space-3);
+      align-items: center;
+      z-index: 50;
+    }
+
+    .gform-actions .btn {
+      padding: 8px 24px;
+      border-radius: var(--radius-full);
+      font-weight: 600;
+    }
+
+    /* ── Mode badge ── */
+    .gform-mode-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(0, 212, 170, 0.12);
+      border: 1px solid rgba(0, 212, 170, 0.3);
+      border-radius: var(--radius-full);
+      padding: 2px 10px;
+      font-size: 0.72rem;
+      color: var(--accent);
+      font-weight: 600;
+      margin-bottom: var(--space-3);
+    }
+
+    /* Ensure select looks right in dark theme */
+    select.form-control {
+      appearance: auto;
+      background-image: none;
+    }
+
+    /* Checkboxes don't need full-width label */
+    .gform-field:has(input[type="checkbox"]) {
+      justify-content: center;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Top Navigation ── -->
+  <nav class="top-nav">
+    <a href="index.html" class="nav-logo" style="margin-right: auto">
+      <span class="logo-icon">🏠</span>
+      <span>BĐS <span class="logo-text">Khảo Sát</span></span>
+    </a>
+    <div style="position:relative; width:28px; height:28px; display:flex; align-items:center; justify-content:center;">
+      <span id="userAvatarFallback" style="font-size:1.2rem; position:absolute;">👤</span>
+      <img id="userAvatar" class="hidden" src="" alt=""
+        style="width:100%;height:100%;border-radius:50%;object-fit:cover;border:1px solid var(--accent);position:absolute;z-index:2;background:var(--bg-surface);">
+    </div>
+  </nav>
+
+  <!-- ── Main Content ── -->
+  <main>
+    <div class="gform-container">
+      <!-- Header -->
+      <div class="gform-header">
+        <div class="gform-mode-badge">
+          <span id="gFormMode">Thêm mới</span>
+        </div>
+        <div class="gform-title" id="gFormTitle">➕ Thêm dòng mới</div>
+        <div class="gform-subtitle" id="gFormSubtitle"></div>
+      </div>
+
+      <!-- Generated Fields -->
+      <div id="gFormFields">
+        <!-- Sẽ được generate động bởi form-generic.js -->
+        <div style="grid-column:1/-1; text-align:center; padding: var(--space-6) 0; color: var(--text-muted)">
+          ⏳ Đang tải form…
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ── Sticky Action Bar ── -->
+  <div class="gform-actions">
+    <button class="btn btn-ghost" id="gFormCancel">← Hủy</button>
+    <button class="btn btn-primary" id="gFormSave">💾 Lưu</button>
+  </div>
+
+  <!-- ── Toast Container ── -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- ── Scripts ── -->
+  <script src="js/config.js?v=2502"></script>
+  <script src="js/auth.js?v=2502"></script>
+  <script src="js/sheets.js?v=2502"></script>
+  <script src="js/workspace.js?v=2502"></script>
+  <script src="js/col-mapper.js?v=2502"></script>
+  <script src="js/form-generic.js?v=2502"></script>
+
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://apis.google.com/js/api.js" async defer></script>
+
+</body>
+</html>

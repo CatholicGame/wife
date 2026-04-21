@@ -231,6 +231,46 @@ ${buildContext()}`;
     getActiveSession().history = [];
     saveSessions();
   }
+
+  async function generateOneOff(prompt) {
+    const apiKey = getApiKey();
+    if (!apiKey) throw new Error('NO_API_KEY');
+
+    const body = {
+      system_instruction: { parts: [{ text: getSystemPrompt() }] },
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.7, topP: 0.95, maxOutputTokens: 2048 }
+    };
+
+    const modelsToTry = [activeModel, ...MODELS.filter(m => m !== activeModel)];
+
+    for (const model of modelsToTry) {
+      const url = `${BASE}/models/${model}:generateContent?key=${apiKey}`;
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (r.ok) {
+        const data = await r.json();
+        return data.candidates?.[0]?.content?.parts?.[0]?.text || '(Không có phản hồi)';
+      }
+
+      const errText = await r.text();
+      let detail = '';
+      try { detail = JSON.parse(errText).error?.message || ''; } 
+      catch (_) { detail = errText.substring(0, 200); }
+
+      if ((r.status === 429 && detail.includes('limit: 0')) || r.status === 404) continue;
+
+      if (r.status === 400 && detail.includes('API_KEY')) throw new Error('API key không hợp lệ.');
+      if (r.status === 403) throw new Error('API chưa được bật. Hãy lấy key mới từ aistudio.google.com');
+      if (r.status === 429) throw new Error('Quá giới hạn (Rate limit). Thử lại sau.');
+      throw new Error(detail || `Lỗi ${r.status}`);
+    }
+    throw new Error('Tất cả model đều bị giới hạn truy cập. Hãy dùng tài khoản Google mới cấp key.');
+  }
   
   async function exportActiveSessionToDocs() {
      const history = getChatHistory();
@@ -260,7 +300,7 @@ ${buildContext()}`;
   }
 
   return {
-    chat, clearHistory, getApiKey, setApiKey, buildContext,
+    chat, generateOneOff, clearHistory, getApiKey, setApiKey, buildContext,
     getSessionsList, switchSession, startNewSession, getChatHistory,
     exportActiveSessionToDocs, getActiveId: () => sessionsState.activeId
   };

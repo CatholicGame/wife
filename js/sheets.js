@@ -40,9 +40,9 @@ const SheetsAPI = (() => {
     const rows = data.values || [];
     if (rows.length === 0) return [];
 
-    // Auto-detect: nếu hàng 1 có < 5 ô → dùng hàng 2
+    // Auto-detect: nếu hàng 1 có < 3 ô (VD bảng BDS có công thức A1) → dùng hàng 2
     const row0NonEmpty = (rows[0] || []).filter((v) => v && String(v).trim()).length;
-    const headerRow = (row0NonEmpty < 5 && rows.length > 1) ? rows[1] : rows[0];
+    const headerRow = (row0NonEmpty < 3 && rows.length > 1) ? rows[1] : rows[0];
 
     // NFC normalize (giống getAllRows)
     return headerRow.map((h, i) => h ? h.normalize('NFC').trim() : `_col${i}`);
@@ -66,11 +66,11 @@ const SheetsAPI = (() => {
     if (rows.length === 0) return { headers: [], rows: [] };
 
     // ── Auto-detect header row ────────────────────────────────
-    // Nếu hàng 1 có ít hơn 5 ô có giá trị (merged cell / gần trống)
-    // → dùng hàng 2 làm header (như sheet của user: row1=formula, row2=headers)
+    // Nếu hàng 1 có ít hơn 3 ô có giá trị (thường do sheet BĐS cũ có 1 ô formula ở A1)
+    // → dùng hàng 2 làm header
     let headerRowIdx = 0;
     const row0NonEmpty = (rows[0] || []).filter((v) => v && String(v).trim()).length;
-    if (row0NonEmpty < 5 && rows.length > 1) {
+    if (row0NonEmpty < 3 && rows.length > 1) {
       headerRowIdx = 1;
       console.log(`📋 Auto-detect: dùng hàng ${headerRowIdx + 1} làm header (hàng 1 chỉ có ${row0NonEmpty} ô)`);
     }
