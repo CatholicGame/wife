@@ -508,12 +508,18 @@ function openColSettingsPanel() {
 
   function _saveDragOrder() {
     const newOrder = [...body.querySelectorAll('[data-col-id]')].map(el => el.dataset.colId);
-    const colById  = {};
-    getV2Columns().forEach(c => { colById[c.id] = c; });
+    // Gọi getV2Columns() chỉ 1 lần để tránh duplicate
+    const currentCols = getV2Columns();
+    const colById = {};
+    currentCols.forEach(c => { colById[c.id] = c; });
     const newCols = newOrder.map(id => colById[id]).filter(Boolean);
-    // Safety: append any orphaned cols not in DOM
-    getV2Columns().forEach(c => { if (!newOrder.includes(c.id)) newCols.push(c); });
-    saveV2Columns(newCols);
+    // Safety: append orphaned cols (có trong storage nhưng không có trong DOM)
+    const seenIds = new Set(newOrder);
+    currentCols.forEach(c => { if (!seenIds.has(c.id)) newCols.push(c); });
+    // Deduplicate theo id để loại bỏ duplicate tích lũy
+    const seen2 = new Set();
+    const dedupedCols = newCols.filter(c => { if (seen2.has(c.id)) return false; seen2.add(c.id); return true; });
+    saveV2Columns(dedupedCols);
     renderV2Table();
   }
 
@@ -598,7 +604,21 @@ function getV2Columns() {
       return [...V2_DEFAULT_COLS];
     }
     const saved = localStorage.getItem(V2_COLS_KEY);
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Auto-heal: loại bỏ duplicate theo id (fix dữ liệu đã bị corrupt)
+      const seenIds = new Set();
+      const deduped = parsed.filter(c => {
+        if (!c || !c.id || seenIds.has(c.id)) return false;
+        seenIds.add(c.id);
+        return true;
+      });
+      // Nếu có duplicate → tự lưu lại bản sạch
+      if (deduped.length !== parsed.length) {
+        localStorage.setItem(V2_COLS_KEY, JSON.stringify(deduped));
+      }
+      return deduped;
+    }
   } catch (e) {}
   return [...V2_DEFAULT_COLS];
 }
