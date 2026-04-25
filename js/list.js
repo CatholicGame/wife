@@ -171,28 +171,83 @@ function renderCard(row) {
 }
 
 // ─── Filter & Sort ────────────────────────────────────────────────────────────
+
+function updateFilterUI(isBDS) {
+  const btnAdvancedFilter = document.getElementById('btnAdvancedFilter');
+  if (btnAdvancedFilter) {
+    btnAdvancedFilter.style.display = isBDS ? '' : 'none';
+  }
+
+  const searchInput = document.getElementById('searchInput');
+  if (searchInput) {
+    searchInput.placeholder = isBDS ? 'Tìm địa chỉ, quận, đầu chủ...' : 'Nhập từ khóa tìm kiếm...';
+  }
+
+  const sortSelect = document.getElementById('sortSelect');
+  if (sortSelect) {
+    if (!isBDS) {
+      // Hide non-generic options
+      Array.from(sortSelect.querySelectorAll('optgroup')).forEach(grp => {
+        if (grp.label !== 'Ngày') grp.style.display = 'none';
+        else grp.style.display = '';
+      });
+      const validForGeneric = ['date-asc', 'date-desc'];
+      if (!validForGeneric.includes(sortSelect.value)) {
+        sortSelect.value = 'date-desc';
+        State.sortBy = 'date-desc';
+      }
+    } else {
+      // Show all
+      Array.from(sortSelect.querySelectorAll('optgroup')).forEach(grp => grp.style.display = '');
+    }
+  }
+}
+
 function applyFiltersAndSort() {
   let rows = [...State.allRows];
+  const isBDS = WorkspaceManager.isBDSMode(State.colMap);
 
   // Search
   if (State.searchQuery) {
     const q = State.searchQuery.toLowerCase();
     rows = rows.filter((r) => {
-      return ['ADDRESS', 'DISTRICT', 'OWNER', 'NOTES'].some((key) => {
-        const v = colVal(r, key).toLowerCase();
-        return v.includes(q);
-      });
+      if (isBDS) {
+        return ['ADDRESS', 'DISTRICT', 'OWNER', 'NOTES'].some((key) => {
+          const v = colVal(r, key).toLowerCase();
+          return v.includes(q);
+        });
+      } else {
+        // Generic search across all headers
+        return (State.headers || []).some((h) => {
+          const v = (r[h] || '').toString().toLowerCase();
+          return v.includes(q);
+        });
+      }
     });
   }
 
-  // Type filter
-  if (State.activeFilter && State.activeFilter !== 'all') {
-    rows = rows.filter((r) => colVal(r, 'TYPE') === State.activeFilter);
-  }
+  // Type & Status & Price filters
+  if (isBDS) {
+    const af = State.advancedFilter || { type: 'all', price: 'all', status: 'all' };
 
-  // Status filter
-  if (State.activeStatus) {
-    rows = rows.filter((r) => colVal(r, 'STATUS') === State.activeStatus);
+    if (af.type && af.type !== 'all') {
+      rows = rows.filter((r) => colVal(r, 'TYPE') === af.type);
+    }
+    if (af.status && af.status !== 'all') {
+      rows = rows.filter((r) => colVal(r, 'STATUS') === af.status);
+    }
+    if (af.price && af.price !== 'all') {
+      rows = rows.filter((r) => {
+        const p = parseFloat(colVal(r, 'PRICE'));
+        if (isNaN(p)) return false; // Ignore item if no price but price filter active
+
+        if (af.price === '0-3') return p < 3;
+        if (af.price === '3-5') return p >= 3 && p <= 5;
+        if (af.price === '5-10') return p > 5 && p <= 10;
+        if (af.price === '10-999') return p > 10;
+        return true;
+      });
+    }
   }
 
   // Sort
@@ -201,19 +256,19 @@ function applyFiltersAndSort() {
       // ── Ngày ──
       case 'date-asc':  return a._row - b._row;
       // ── Điểm ──
-      case 'score-desc': return (parseFloat(colVal(b, 'SCORE')) || 0) - (parseFloat(colVal(a, 'SCORE')) || 0);
-      case 'score-asc':  return (parseFloat(colVal(a, 'SCORE')) || 0) - (parseFloat(colVal(b, 'SCORE')) || 0);
+      case 'score-desc': return isBDS ? (parseFloat(colVal(b, 'SCORE')) || 0) - (parseFloat(colVal(a, 'SCORE')) || 0) : b._row - a._row;
+      case 'score-asc':  return isBDS ? (parseFloat(colVal(a, 'SCORE')) || 0) - (parseFloat(colVal(b, 'SCORE')) || 0) : a._row - b._row;
       // ── Giá ──
-      case 'price-asc':     return (parseFloat(colVal(a, 'PRICE')) || 0) - (parseFloat(colVal(b, 'PRICE')) || 0);
-      case 'price-desc':    return (parseFloat(colVal(b, 'PRICE')) || 0) - (parseFloat(colVal(a, 'PRICE')) || 0);
-      case 'price-m2-asc':  return (parseFloat(colVal(a, 'PRICE_M2')) || 0) - (parseFloat(colVal(b, 'PRICE_M2')) || 0);
-      case 'price-m2-desc': return (parseFloat(colVal(b, 'PRICE_M2')) || 0) - (parseFloat(colVal(a, 'PRICE_M2')) || 0);
+      case 'price-asc':     return isBDS ? (parseFloat(colVal(a, 'PRICE')) || 0) - (parseFloat(colVal(b, 'PRICE')) || 0) : a._row - b._row;
+      case 'price-desc':    return isBDS ? (parseFloat(colVal(b, 'PRICE')) || 0) - (parseFloat(colVal(a, 'PRICE')) || 0) : b._row - a._row;
+      case 'price-m2-asc':  return isBDS ? (parseFloat(colVal(a, 'PRICE_M2')) || 0) - (parseFloat(colVal(b, 'PRICE_M2')) || 0) : a._row - b._row;
+      case 'price-m2-desc': return isBDS ? (parseFloat(colVal(b, 'PRICE_M2')) || 0) - (parseFloat(colVal(a, 'PRICE_M2')) || 0) : b._row - a._row;
       // ── Diện tích ──
-      case 'area-desc': return (parseFloat(colVal(b, 'AREA')) || 0) - (parseFloat(colVal(a, 'AREA')) || 0);
-      case 'area-asc':  return (parseFloat(colVal(a, 'AREA')) || 0) - (parseFloat(colVal(b, 'AREA')) || 0);
+      case 'area-desc': return isBDS ? (parseFloat(colVal(b, 'AREA')) || 0) - (parseFloat(colVal(a, 'AREA')) || 0) : b._row - a._row;
+      case 'area-asc':  return isBDS ? (parseFloat(colVal(a, 'AREA')) || 0) - (parseFloat(colVal(b, 'AREA')) || 0) : a._row - b._row;
       // ── Khu vực ──
-      case 'district-az': return (colVal(a, 'DISTRICT') || '').localeCompare(colVal(b, 'DISTRICT') || '', 'vi');
-      case 'district-za': return (colVal(b, 'DISTRICT') || '').localeCompare(colVal(a, 'DISTRICT') || '', 'vi');
+      case 'district-az': return isBDS ? (colVal(a, 'DISTRICT') || '').localeCompare(colVal(b, 'DISTRICT') || '', 'vi') : a._row - b._row;
+      case 'district-za': return isBDS ? (colVal(b, 'DISTRICT') || '').localeCompare(colVal(a, 'DISTRICT') || '', 'vi') : b._row - a._row;
       // ── Mặc định: mới nhất ──
       default: return row_desc(a, b);
     }
@@ -231,9 +286,13 @@ function row_desc(a, b) {
 function renderList() {
   const countEl = document.getElementById('listCount');
   if (countEl) {
+    const isBDS = (typeof WorkspaceManager !== 'undefined' && State.colMap) 
+      ? WorkspaceManager.isBDSMode(State.colMap) 
+      : true;
+    const itemLabel = isBDS ? 'bất động sản' : 'dòng';
     countEl.textContent = State.filtered.length === 0
       ? '0 kết quả'
-      : `${State.filtered.length} bất động sản`;
+      : `${State.filtered.length} ${itemLabel}`;
   }
 
   const container = document.getElementById('refactorView');
@@ -361,25 +420,35 @@ function renderTable() {
     if (!rowObj) { console.error('[TableClick] rowObj not found in _rowMap'); return; }
     localStorage.setItem('_rowData', JSON.stringify(rowObj));
     localStorage.setItem('_rowHeaders', JSON.stringify(State.headers));
-    console.log('[TableClick] navigating to form.html with row', rowNum);
-    window.location.href = 'form.html';
+    const isBDS = WorkspaceManager.isBDSMode(State.colMap);
+    const targetUrl = isBDS ? 'form.html' : 'form-generic.html';
+    console.log('[TableClick] navigating to with row', rowNum, targetUrl);
+    window.location.href = targetUrl;
   });
 }
 
 // ─── V2 Table (Refactor View) ─────────────────────────────────────────────────
-const V2_COLS_KEY = 'bds_v2_columns';
-const V2_HIDDEN_COLS_KEY = 'bds_v2_hidden_cols';
+// Keys are now per-workspace (scoped via WorkspaceManager.storageKey)
+const V2_COLS_KEY        = 'v2_columns';   // suffix only
+const V2_HIDDEN_COLS_KEY = 'hidden_cols';  // suffix only
+
+function _wsKey(suffix) {
+  // WorkspaceManager may not be available in tests → fallback to legacy key
+  return (typeof WorkspaceManager !== 'undefined')
+    ? WorkspaceManager.storageKey(suffix)
+    : 'bds_' + suffix;
+}
 
 function getHiddenCols() {
   try {
-    const saved = localStorage.getItem(V2_HIDDEN_COLS_KEY);
+    const saved = localStorage.getItem(_wsKey(V2_HIDDEN_COLS_KEY));
     if (saved) return new Set(JSON.parse(saved));
   } catch (e) {}
   return new Set();
 }
 
 function saveHiddenCols(hiddenSet) {
-  localStorage.setItem(V2_HIDDEN_COLS_KEY, JSON.stringify([...hiddenSet]));
+  localStorage.setItem(_wsKey(V2_HIDDEN_COLS_KEY), JSON.stringify([...hiddenSet]));
 }
 
 function openColSettingsPanel() {
@@ -508,12 +577,18 @@ function openColSettingsPanel() {
 
   function _saveDragOrder() {
     const newOrder = [...body.querySelectorAll('[data-col-id]')].map(el => el.dataset.colId);
-    const colById  = {};
-    getV2Columns().forEach(c => { colById[c.id] = c; });
+    // Gọi getV2Columns() chỉ 1 lần để tránh duplicate
+    const currentCols = getV2Columns();
+    const colById = {};
+    currentCols.forEach(c => { colById[c.id] = c; });
     const newCols = newOrder.map(id => colById[id]).filter(Boolean);
-    // Safety: append any orphaned cols not in DOM
-    getV2Columns().forEach(c => { if (!newOrder.includes(c.id)) newCols.push(c); });
-    saveV2Columns(newCols);
+    // Safety: append orphaned cols (có trong storage nhưng không có trong DOM)
+    const seenIds = new Set(newOrder);
+    currentCols.forEach(c => { if (!seenIds.has(c.id)) newCols.push(c); });
+    // Deduplicate theo id để loại bỏ duplicate tích lũy
+    const seen2 = new Set();
+    const dedupedCols = newCols.filter(c => { if (seen2.has(c.id)) return false; seen2.add(c.id); return true; });
+    saveV2Columns(dedupedCols);
     renderV2Table();
   }
 
@@ -589,22 +664,62 @@ const V2_GROUP_BG = {
   red:     'rgba(231,76,60,0.1)',
 };
 
+function buildGenericCols() {
+  if (!State.headers) return [];
+  const cols = State.headers.map((h, i) => ({
+    id: 'gen_col_' + i,
+    label: h,
+    group: 'default',
+    system: false,
+    headerName: h,
+    cls: 'col-generic'
+  }));
+  cols.unshift({ id: 'stt', label: 'STT', group: 'default', system: true });
+  return cols;
+}
+
 function getV2Columns() {
+  const wsKey = _wsKey(V2_COLS_KEY);
+  const isBDS = (typeof WorkspaceManager !== 'undefined' && State.colMap) 
+    ? WorkspaceManager.isBDSMode(State.colMap) 
+    : true; // fallback
+
   try {
-    const ver = localStorage.getItem('v2_col_v5');
+    // Version flag is per-workspace
+    const verKey = wsKey + '_v5';
+    const ver = localStorage.getItem(verKey);
     if (!ver) {
-      localStorage.setItem('v2_col_v5', '1');
-      localStorage.removeItem(V2_COLS_KEY); // wipe old layout → apply new defaults
-      return [...V2_DEFAULT_COLS];
+      localStorage.setItem(verKey, '1');
+      localStorage.removeItem(wsKey); // wipe old layout → apply new defaults
+      return isBDS ? [...V2_DEFAULT_COLS] : buildGenericCols();
     }
-    const saved = localStorage.getItem(V2_COLS_KEY);
-    if (saved) return JSON.parse(saved);
+    const saved = localStorage.getItem(wsKey);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Auto-heal: loại bỏ duplicate theo id
+      const seenIds = new Set();
+      const deduped = parsed.filter(c => {
+        if (!c || !c.id || seenIds.has(c.id)) return false;
+        seenIds.add(c.id);
+        return true;
+      });
+      if (deduped.length !== parsed.length) {
+        localStorage.setItem(wsKey, JSON.stringify(deduped));
+      }
+      
+      // Nếu là sheet mới tinh vừa import nhưng lại load ra rỗng (vì State.headers chưa có khi getV2Columns chạy lần đầu?)
+      // Nếu deduped rỗng mà là generic, thử build lại
+      if (deduped.length === 0 && !isBDS) return buildGenericCols();
+      
+      return deduped;
+    }
   } catch (e) {}
-  return [...V2_DEFAULT_COLS];
+  
+  return isBDS ? [...V2_DEFAULT_COLS] : buildGenericCols();
 }
 
 function saveV2Columns(cols) {
-  localStorage.setItem(V2_COLS_KEY, JSON.stringify(cols));
+  localStorage.setItem(_wsKey(V2_COLS_KEY), JSON.stringify(cols));
 }
 
 function renderV2Table() {
@@ -657,7 +772,13 @@ function renderV2Table() {
       if (col.knownKey) {
         val = colVal(row, col.knownKey);
       } else if (col.headerName) {
-        val = row[col.headerName] || '';
+        val = row[col.headerName];
+        if (val === undefined) {
+          const lowerHeader = col.headerName.toLowerCase().trim();
+          const actualKey = Object.keys(row).find(k => k.toLowerCase().trim() === lowerHeader);
+          if (actualKey) val = row[actualKey];
+        }
+        val = val || '';
       }
 
       // Format special columns
@@ -739,14 +860,20 @@ function renderV2Table() {
     });
     // Toggle delete button in header
     const delBtn = document.getElementById('btnDeleteSelectedRow');
+    const copyBtn = document.getElementById('btnSmartCopyRow');
     if (delBtn) {
       if (rowNum) {
         delBtn.classList.remove('hidden', 'btn-ghost');
         delBtn.classList.add('btn-danger');
         delBtn.dataset.row = rowNum;
+        if (copyBtn) {
+          copyBtn.classList.remove('hidden');
+          copyBtn.dataset.row = rowNum;
+        }
       } else {
         delBtn.classList.add('hidden');
         delBtn.dataset.row = '';
+        if (copyBtn) { copyBtn.classList.add('hidden'); copyBtn.dataset.row = ''; }
       }
     }
   }
@@ -763,7 +890,8 @@ function renderV2Table() {
       if (!rowObj) return;
       localStorage.setItem('_rowData', JSON.stringify(rowObj));
       localStorage.setItem('_rowHeaders', JSON.stringify(State.headers));
-      window.location.href = 'form.html';
+      const targetUrl = WorkspaceManager.isBDSMode(State.colMap) ? `form.html?row=${rowNum}` : 'form-generic.html';
+      window.location.href = targetUrl;
     } else {
       _setSelectedRow(rowNum);
     }
@@ -786,7 +914,7 @@ function renderV2Table() {
         fresh.textContent = '⏳ Đang xóa…';
         const sheetIdNum = await SheetsAPI.getSheetId(spreadsheetId, sheetName);
         if (sheetIdNum === undefined) throw new Error('Không tìm thấy ID Worksheet');
-        await SheetsAPI.deleteRow(spreadsheetId, sheetName, rowId + 2, sheetIdNum);
+        await SheetsAPI.deleteRow(spreadsheetId, sheetName, rowId, sheetIdNum);
         showToast('Đã xóa dòng thành công ✓', 'success');
         SheetsAPI.invalidateCache();
         _selectedRowNum = null;
@@ -796,6 +924,67 @@ function renderV2Table() {
         fresh.disabled = false;
         fresh.textContent = '🗑️ Xóa dòng';
       }
+    });
+  }
+
+  // Wire the Smart Copy button
+  const smartCopyBtn = document.getElementById('btnSmartCopyRow');
+  if (smartCopyBtn) {
+    const freshCopyBtn = smartCopyBtn.cloneNode(true);
+    smartCopyBtn.parentNode.replaceChild(freshCopyBtn, smartCopyBtn);
+    freshCopyBtn.addEventListener('click', () => {
+      const rowId = parseInt(freshCopyBtn.dataset.row);
+      if (!rowId) return;
+      const rowObj = State.filtered.find(r => r._row === rowId);
+      if (!rowObj) return;
+
+      // Ensure we maintain a clean sequential list matching table logic
+      let details = [];
+      let index = 1;
+      const allCols = getV2Columns();
+      const hidden = getHiddenCols();
+      const cols = allCols.filter(col => !hidden.has(col.id));
+      
+      cols.forEach(col => {
+        if (col.id === 'stt' || col.system === true && col.id !== 'stt') return;
+        
+        let val = '';
+        if (col.knownKey) {
+          val = colVal(rowObj, col.knownKey);
+        } else if (col.headerName) {
+          val = rowObj[col.headerName];
+          if (val === undefined) {
+            const lowerHeader = col.headerName.toLowerCase().trim();
+            const actualKey = Object.keys(rowObj).find(k => k.toLowerCase().trim() === lowerHeader);
+            if (actualKey) val = rowObj[actualKey];
+          }
+        }
+        
+        if (val !== undefined && val !== null && String(val).trim() !== '') {
+          details.push(`${index}. ${col.label}: ${val}`);
+          index++;
+        }
+      });
+      const dataText = details.join('\n');
+
+      // Open Modal
+      document.getElementById('smartCopyModal').classList.remove('hidden');
+      
+      const resultBox = document.getElementById('smartCopyResultBox');
+      resultBox.classList.remove('hidden');
+      resultBox.textContent = dataText;
+      
+      const confirmBtn = document.getElementById('btnConfirmCopy');
+      confirmBtn.classList.remove('hidden');
+
+      confirmBtn.onclick = () => {
+        navigator.clipboard.writeText(dataText).then(() => {
+          showToast('Đã copy dữ liệu ✓', 'success');
+          document.getElementById('smartCopyModal').classList.add('hidden');
+        }).catch(err => {
+          showToast('Lỗi copy: ' + err.message, 'error');
+        });
+      };
     });
   }
 }
@@ -925,28 +1114,53 @@ async function loadData(forceRefresh = false) {
 
     State.rows = rows; // lưu để dùng trong ColMapper
     State.colMap = buildColMap(headers);
+    const isBDS = WorkspaceManager.isBDSMode(State.colMap);
+
     State.allRows = rows.filter((r) => {
-      // Chỉ giữ dòng có địa chỉ hoặc giá
-      const addr = colVal(r, 'ADDRESS');
-      const price = colVal(r, 'PRICE');
-      const district = colVal(r, 'DISTRICT');
-      if (addr && addr.trim()) return true;
-      if (price && price.trim() && !isNaN(parseFloat(price))) return true;
-      if (district && district.trim()) return true;
-      // Fallback: kiểm tra raw values có ít nhất 3 ô không trống
-      if (!r._values) return false;
-      const nonEmpty = r._values.filter(v => v && String(v).trim() && String(v) !== '#DIV/0!').length;
-      return nonEmpty >= 3;
+      if (isBDS) {
+        const addr = colVal(r, 'ADDRESS');
+        const price = colVal(r, 'PRICE');
+        const district = colVal(r, 'DISTRICT');
+        const owner = colVal(r, 'OWNER');
+        const phone = colVal(r, 'PHONE');
+        
+        const isValid = (addr && addr.trim()) || 
+                        (district && district.trim()) || 
+                        (owner && owner.trim()) || 
+                        (phone && phone.trim()) || 
+                        (price && price.trim() && !isNaN(parseFloat(price)));
+        return isValid;
+      } else {
+        // Khác BĐS: Chỉ cần có ít nhất 1 dòng dữ liệu thực sự (không phải mảng _values trống)
+        if (!r._values) return false;
+        
+        let hasData = false;
+        Object.keys(r).forEach(k => {
+          if (k !== '_row' && k !== '_values' && r[k] !== undefined && r[k] !== null && String(r[k]).trim() !== '') {
+            if (String(r[k]) !== '#DIV/0!' && String(r[k]) !== '#REF!') {
+              hasData = true;
+            }
+          }
+        });
+        return hasData;
+      }
     });
+
+    // Cập nhật UI filter theo chế độ BĐS hay Generic mode
+    updateFilterUI(isBDS);
+
     applyFiltersAndSort();
     renderList();
 
     // (sheetRowCount removed — count is shown in listCount instead)
 
-    // Nếu ADDRESS chưa map được và chưa có saved mapping → tự mở mapper
-    const hasSavedMap = Object.keys(ColMapper.load()).length > 0;
-    if (!State.colMap['ADDRESS'] && !hasSavedMap) {
-      openColMapper();
+    // Nếu là BĐS sheet nhưng ADDRESS chưa map và chưa có saved mapping → gợi ý mapper
+    // Bỏ qua hoàn toàn với generic sheet — ColMapper BĐS không có nghĩa với chúng
+    if (isBDS) {
+      const hasSavedMap = Object.keys(ColMapper.load()).length > 0;
+      if (!State.colMap['ADDRESS'] && !hasSavedMap) {
+        openColMapper();
+      }
     }
   } catch (err) {
     console.error(err);
@@ -986,23 +1200,30 @@ async function connectSheet() {
     if (!result) return;
 
     const { spreadsheetId, name } = result;
-    localStorage.setItem(APP_CONFIG.STORAGE.SPREADSHEET_ID, spreadsheetId);
-    localStorage.setItem(APP_CONFIG.STORAGE.SPREADSHEET_NAME, name);
 
     // Get sheet names
     const sheetNames = await SheetsAPI.getSheetNames(spreadsheetId);
 
     let chosenSheet = sheetNames[0];
     if (sheetNames.length > 1) {
-      // Prompt user to pick a sheet
       chosenSheet = await promptSheetSelect(sheetNames);
       if (!chosenSheet) return;
     }
 
-    localStorage.setItem(APP_CONFIG.STORAGE.SHEET_NAME, chosenSheet);
-    document.getElementById('sheetNameLabel').textContent = name;
-    document.getElementById('sheetInfoBar').classList.remove('hidden');
+    // ── Add to WorkspaceManager & switch ──
+    const ws = WorkspaceManager.add(spreadsheetId, chosenSheet, name);
+    WorkspaceManager.switchTo(ws.id);
 
+    // Legacy sync (các phần code cũ vẫn đọc)
+    localStorage.setItem(APP_CONFIG.STORAGE.SPREADSHEET_ID, spreadsheetId);
+    localStorage.setItem(APP_CONFIG.STORAGE.SHEET_NAME, chosenSheet);
+    localStorage.setItem(APP_CONFIG.STORAGE.SPREADSHEET_NAME, name);
+
+    const labelEl = document.getElementById('sheetNameLabel');
+    if (labelEl) labelEl.textContent = name;
+    document.getElementById('sheetInfoBar')?.classList.remove('hidden');
+
+    WorkspaceSwitcher.updateNavBadge();
     showUI();
     await loadData(true);
     showToast(`Đã kết nối: ${name}`, 'success');
@@ -1074,6 +1295,9 @@ function showUI() {
   document.getElementById('btnSetupCols')?.classList.remove('hidden');
   document.getElementById('btnChangeSheet')?.classList.remove('hidden');
   document.getElementById('aiFabBtn')?.classList.remove('hidden');
+  // Hiển thị workspace nav button
+  const wsBtn = document.getElementById('btnWorkspace');
+  if (wsBtn) wsBtn.style.display = '';
   // Hiển thị bottom nav cố định khi vào màn hình chính
   document.getElementById('bottomNav')?.classList.remove('hidden');
 
@@ -1157,8 +1381,12 @@ async function init() {
     return;
   }
 
-  // 6. Hiển thị UI chính và tải dữ liệu
+  // 6. Migrate legacy single-sheet → workspace system
+  WorkspaceManager.migrate();
+
+  // 7. Hiển thị UI chính và tải dữ liệu
   showUI();
+  WorkspaceSwitcher.updateNavBadge();
   await loadData();
 
   // 7. Gán event chỉ sau khi UI đang hiển thị
@@ -1178,7 +1406,8 @@ async function init() {
   document.getElementById('tableView')?.addEventListener('click', (e) => {
     const tr = e.target.closest('tr[data-row]');
     if (tr) {
-      window.location.href = `form.html?row=${tr.dataset.row}`;
+      const isBDS = WorkspaceManager.isBDSMode(State.colMap);
+      window.location.href = isBDS ? `form.html?row=${tr.dataset.row}` : `form-generic.html`;
     }
   });
 }
@@ -1192,32 +1421,81 @@ function debounce(fn, ms) {
 document.addEventListener('DOMContentLoaded', () => {
   // (View toggle removed — chỉ dùng V2 table)
 
-  // Filter chips
-  document.getElementById('filterRow')?.addEventListener('click', (e) => {
-    const chip = e.target.closest('.filter-chip');
-    if (!chip) return;
-    document.querySelectorAll('.filter-chip').forEach((c) => c.classList.remove('active'));
-    chip.classList.add('active');
-    if (chip.dataset.filter) {
-      State.activeFilter = chip.dataset.filter;
-      State.activeStatus = null;
-    } else if (chip.dataset.status) {
-      State.activeFilter = 'all';
-      State.activeStatus = chip.dataset.status;
-    }
-    applyFiltersAndSort();
-    renderList();
+  // Advanced Filter Modal Logic
+  State.advancedFilter = { type: 'all', price: 'all', status: 'all' };
+
+  const btnAdv = document.getElementById('btnAdvancedFilter');
+  const advModal = document.getElementById('advancedFilterModal');
+  const typeSel = document.getElementById('filterType');
+  const priceSel = document.getElementById('filterPrice');
+  const statusSel = document.getElementById('filterStatus');
+
+  btnAdv?.addEventListener('click', () => {
+    // Sync current state to UI
+    typeSel.value = State.advancedFilter.type;
+    priceSel.value = State.advancedFilter.price;
+    statusSel.value = State.advancedFilter.status;
+    advModal.classList.remove('hidden');
   });
 
-  // FAB
+  document.getElementById('btnCloseFilter')?.addEventListener('click', () => {
+    advModal.classList.add('hidden');
+  });
+  
+  document.getElementById('btnClearFilter')?.addEventListener('click', () => {
+    typeSel.value = 'all';
+    priceSel.value = 'all';
+    statusSel.value = 'all';
+  });
+
+  document.getElementById('btnApplyFilter')?.addEventListener('click', () => {
+    State.advancedFilter = {
+      type: typeSel.value,
+      price: priceSel.value,
+      status: statusSel.value
+    };
+    advModal.classList.add('hidden');
+    applyFiltersAndSort();
+    renderList();
+    
+    // Highlight button if active filter differs from default
+    if (State.advancedFilter.type !== 'all' || State.advancedFilter.price !== 'all' || State.advancedFilter.status !== 'all') {
+      btnAdv.classList.add('badge-accent');
+    } else {
+      btnAdv.classList.remove('badge-accent');
+    }
+  });
+
+  // FAB – route to BĐS form or generic form based on current workspace
   document.getElementById('fabAdd')?.addEventListener('click', () => {
-    window.location.href = 'form.html';
+    const isBDS = WorkspaceManager.isBDSMode(State.colMap);
+    window.location.href = isBDS ? 'form.html' : 'form-generic.html';
   });
 
   // Refresh
   document.getElementById('btnRefresh')?.addEventListener('click', () => loadData(true));
   document.getElementById('btnChangeSheet')?.addEventListener('click', connectSheet);
   document.getElementById('btnPickSheet')?.addEventListener('click', connectSheet);
+
+  // Workspace switcher nav button
+  document.getElementById('btnWorkspace')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    WorkspaceSwitcher.open(async (wsId, action) => {
+      if (action === 'import') {
+        // User clicked "Import Sheet mới"
+        await connectSheet();
+        return;
+      }
+      if (wsId) {
+        // Switch to another workspace
+        SheetsAPI.invalidateCache();
+        WorkspaceSwitcher.updateNavBadge();
+        showUI();
+        await loadData(true);
+        showToast('Đã chuyển sheet ✓', 'success');
+      }
+    });
+  });
   document.getElementById('btnSetupCols')?.addEventListener('click', openColMapper);
   document.getElementById('btnModalPickSheet')?.addEventListener('click', () => {
     closeModal(); connectSheet();

@@ -85,13 +85,22 @@
     .bottom-actions {
       position: fixed;
       bottom: 0; left: 0; right: 0;
-      background: rgba(13,17,23,0.95);
+      background: rgba(13,17,23,0.85); /* Slightly more transparent */
       backdrop-filter: blur(12px);
       border-top: 1px solid var(--border);
       padding: var(--space-3) var(--space-4);
       padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom));
       display: flex;
+      justify-content: flex-end;
       gap: var(--space-3);
+      align-items: center;
+      z-index: 50;
+    }
+
+    .bottom-actions .btn {
+      padding: 8px 24px;
+      border-radius: var(--radius-full);
+      font-weight: 600;
     }
 
     /* Dynamic fields from Sheet headers */
@@ -381,9 +390,9 @@
       <div class="form-row form-row-2">
         <div class="form-group">
           <label class="form-label">Ngày &amp; Giờ khảo sát</label>
-          <div style="display:flex;gap:8px;align-items:center">
-            <input type="datetime-local" class="form-control" id="field_DATE" style="flex:1">
-            <button type="button" id="btnNow" class="btn btn-secondary" title="Lấy thời gian hiện tại" style="flex-shrink:0;white-space:nowrap">🕐 Bây giờ</button>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="datetime-local" class="form-control" id="field_DATE" style="flex:1;min-width:0;flex-basis:180px">
+            <button type="button" id="btnNow" class="btn btn-secondary" title="Lấy thời gian hiện tại" style="flex:1;white-space:nowrap;flex-basis:100px;text-align:center">🕐 Bây giờ</button>
           </div>
         </div>
         <div class="form-group">
@@ -441,8 +450,8 @@
 
 <!-- ── Bottom Actions ── -->
 <div class="bottom-actions">
-  <button type="button" class="btn btn-secondary flex-1" id="btnCancel">Hủy</button>
-  <button type="submit" form="propertyForm" class="btn btn-primary flex-1" id="btnSave">
+  <button type="button" class="btn btn-secondary" id="btnCancel">Hủy</button>
+  <button type="submit" form="propertyForm" class="btn btn-primary" id="btnSave">
     <span id="btnSaveText">💾 Lưu BĐS</span>
   </button>
 </div>

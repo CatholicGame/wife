@@ -1197,7 +1197,9 @@ input[type=range]:focus::-webkit-slider-thumb {
 }
 
 .v2-col-delete {
-  display: none;
+  display: inline-flex;
+  opacity: 0;
+  pointer-events: none;
   width: 18px;
   height: 18px;
   border-radius: 50%;
@@ -1220,7 +1222,8 @@ input[type=range]:focus::-webkit-slider-thumb {
 }
 
 th:hover .v2-col-delete {
-  display: inline-flex;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* ── AI Chat Panel ───────────────────────────────────────── */
