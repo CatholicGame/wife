@@ -60,6 +60,7 @@ const State = {
   sortBy: 'date-desc',
   isLoading: false,
   viewMode: 'refactor', // Only V2 table
+  columnFilters: {},    // { colId: Set<selectedValues> } — Google Sheets-style per-column filters
 };
 
 // ─── Column Mapping ───────────────────────────────────────────────────────────
@@ -248,6 +249,34 @@ function applyFiltersAndSort() {
         return true;
       });
     }
+  }
+
+  // ── Google Sheets-style column filters ──
+  if (Object.keys(State.columnFilters).length > 0) {
+    const allCols = getV2Columns();
+    rows = rows.filter(row => {
+      for (const [colId, allowedSet] of Object.entries(State.columnFilters)) {
+        if (!allowedSet || allowedSet.size === 0) continue;
+        const col = allCols.find(c => c.id === colId);
+        if (!col) continue;
+        let val = '';
+        if (col.knownKey) {
+          val = colVal(row, col.knownKey);
+        } else if (col.headerName) {
+          val = row[col.headerName];
+          if (val === undefined) {
+            const lowerHeader = col.headerName.toLowerCase().trim();
+            const actualKey = Object.keys(row).find(k => k.toLowerCase().trim() === lowerHeader);
+            if (actualKey) val = row[actualKey];
+          }
+          val = val || '';
+        }
+        val = String(val).trim();
+        if (val === '') val = '(Trống)';
+        if (!allowedSet.has(val)) return false;
+      }
+      return true;
+    });
   }
 
   // Sort
@@ -643,6 +672,7 @@ const V2_DEFAULT_COLS = [
   { id: 'owner',     label: 'Đầu chủ',       group: 'red',      knownKey: 'OWNER' },
   { id: 'phone',     label: 'SĐT',            group: 'red',      knownKey: 'PHONE' },
   { id: 'price',     label: 'Giá (Tỷ)',      group: 'orange',   knownKey: 'PRICE' },
+  { id: 'price_m2',  label: 'Giá/m²',        group: 'orange',   knownKey: 'PRICE_M2' },
   { id: 'area',      label: 'DT (m²)',        group: 'orange',   knownKey: 'AREA' },
   { id: 'front',     label: 'Mặt tiền (m)',   group: 'orange',   knownKey: 'FRONT' },
   { id: 'road',      label: 'Đường (m)',      group: 'orange',   knownKey: 'ROAD' },
@@ -686,7 +716,7 @@ function getV2Columns() {
 
   try {
     // Version flag is per-workspace
-    const verKey = wsKey + '_v5';
+    const verKey = wsKey + '_v6';
     const ver = localStorage.getItem(verKey);
     if (!ver) {
       localStorage.setItem(verKey, '1');
@@ -751,14 +781,17 @@ function renderV2Table() {
 
   const TYPE_ICONS = { text:'📔', number:'🔢', date:'📅', datetime:'🕰️', textarea:'📝', select:'🏷️', checkbox:'☑️' };
 
-  // Build header
+  // Build header — with Google Sheets-style filter icon
+  const hasAnyColFilter = Object.keys(State.columnFilters).length > 0;
   const thCells = cols.map((col) => {
     const bg = V2_GROUP_BG[col.group] || V2_GROUP_BG.default;
     const deleteBtn = col.system
       ? ''
       : '<button class="v2-col-delete" data-col-idx="' + cols.indexOf(col) + '" title="Xóa cột">✕</button>';
     const typeIcon = col.fieldType && TYPE_ICONS[col.fieldType] ? `<span style="margin-left:4px;font-size:0.8rem;opacity:0.7" title="${col.fieldType}">${TYPE_ICONS[col.fieldType]}</span>` : '';
-    return '<th style="background:' + bg + '"><div class="v2-th-wrap"><span style="display:inline-flex;align-items:center">' + col.label + typeIcon + '</span>' + deleteBtn + '</div></th>';
+    const isFilterActive = !!State.columnFilters[col.id];
+    const filterBtn = col.system ? '' : '<button class="col-filter-btn' + (isFilterActive ? ' active' : '') + '" data-filter-col="' + col.id + '" title="Lọc cột này">▾</button>';
+    return '<th style="background:' + bg + '"><div class="v2-th-wrap"><span style="display:inline-flex;align-items:center">' + col.label + typeIcon + '</span><div style="display:flex;gap:2px;align-items:center">' + filterBtn + deleteBtn + '</div></div></th>';
   }).join('');
 
   // Build body
@@ -815,6 +848,33 @@ function renderV2Table() {
     return '<tr data-v2row="' + row._row + '" style="cursor:pointer">' + cells + '</tr>';
   }).join('');
 
+  // Clear all filter badge in header actions
+  const clearFilterBtnId = 'btnClearColFilters';
+  let existingClearBtn = document.getElementById(clearFilterBtnId);
+  if (hasAnyColFilter) {
+    if (!existingClearBtn) {
+      const headerActions = document.querySelector('.header-actions');
+      if (headerActions) {
+        existingClearBtn = document.createElement('button');
+        existingClearBtn.id = clearFilterBtnId;
+        existingClearBtn.className = 'btn btn-ghost btn-sm';
+        existingClearBtn.style.cssText = 'font-size:0.75rem;padding:4px 10px;white-space:nowrap;color:var(--accent);border-color:var(--accent)';
+        headerActions.insertBefore(existingClearBtn, headerActions.firstChild);
+      }
+    }
+    if (existingClearBtn) {
+      const filterCount = Object.keys(State.columnFilters).length;
+      existingClearBtn.textContent = '🔽 Bỏ lọc (' + filterCount + ')';
+      existingClearBtn.onclick = () => {
+        State.columnFilters = {};
+        applyFiltersAndSort();
+        renderList();
+      };
+    }
+  } else if (existingClearBtn) {
+    existingClearBtn.remove();
+  }
+
   container.innerHTML =
     '<table class="data-table">' +
     '<thead><tr>' + thCells + '</tr></thead>' +
@@ -846,6 +906,17 @@ function renderV2Table() {
       const col = cols[idx];
       if (!col) return;
       v2RequestDeleteColumn(col.id, col.label);
+    });
+  });
+
+  // ── Column filter buttons (Google Sheets style) ──
+  container.querySelectorAll('.col-filter-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const colId = btn.dataset.filterCol;
+      const col = cols.find(c => c.id === colId);
+      if (!col) return;
+      openColumnFilterDropdown(col, btn);
     });
   });
 
@@ -987,6 +1058,190 @@ function renderV2Table() {
       };
     });
   }
+}
+
+// ── Google Sheets-style Column Filter Dropdown ────────────────────────────────
+function openColumnFilterDropdown(col, triggerBtn) {
+  // Remove existing dropdown
+  document.getElementById('colFilterDropdown')?.remove();
+
+  // Collect all unique values for this column from ALL rows (before column filters, but after search+advanced)
+  // We use State.allRows and re-apply search+advanced (but NOT column filters) to get the base dataset
+  let baseRows = [...State.allRows];
+  const isBDS = WorkspaceManager.isBDSMode(State.colMap);
+
+  // Reapply search
+  if (State.searchQuery) {
+    const q = State.searchQuery.toLowerCase();
+    baseRows = baseRows.filter(r => {
+      if (isBDS) {
+        return ['ADDRESS', 'DISTRICT', 'OWNER', 'NOTES'].some(key => colVal(r, key).toLowerCase().includes(q));
+      } else {
+        return (State.headers || []).some(h => (r[h] || '').toString().toLowerCase().includes(q));
+      }
+    });
+  }
+
+  // Reapply advanced filter (BDS only)
+  if (isBDS) {
+    const af = State.advancedFilter || { type: 'all', price: 'all', status: 'all' };
+    if (af.type && af.type !== 'all') baseRows = baseRows.filter(r => colVal(r, 'TYPE') === af.type);
+    if (af.status && af.status !== 'all') baseRows = baseRows.filter(r => colVal(r, 'STATUS') === af.status);
+    if (af.price && af.price !== 'all') {
+      baseRows = baseRows.filter(r => {
+        const p = parseFloat(colVal(r, 'PRICE'));
+        if (isNaN(p)) return false;
+        if (af.price === '0-3') return p < 3;
+        if (af.price === '3-5') return p >= 3 && p <= 5;
+        if (af.price === '5-10') return p > 5 && p <= 10;
+        if (af.price === '10-999') return p > 10;
+        return true;
+      });
+    }
+  }
+
+  // Collect unique values
+  const valCounts = new Map(); // value → count
+  baseRows.forEach(row => {
+    let val = '';
+    if (col.knownKey) {
+      val = colVal(row, col.knownKey);
+    } else if (col.headerName) {
+      val = row[col.headerName];
+      if (val === undefined) {
+        const lk = col.headerName.toLowerCase().trim();
+        const ak = Object.keys(row).find(k => k.toLowerCase().trim() === lk);
+        if (ak) val = row[ak];
+      }
+      val = val || '';
+    }
+    val = String(val).trim();
+    if (val === '') val = '(Trống)';
+    valCounts.set(val, (valCounts.get(val) || 0) + 1);
+  });
+
+  // Sort values alphabetically, but put "(Trống)" last
+  const sortedValues = [...valCounts.keys()].sort((a, b) => {
+    if (a === '(Trống)') return 1;
+    if (b === '(Trống)') return -1;
+    return a.localeCompare(b, 'vi');
+  });
+
+  // Current filter state for this column
+  const currentFilter = State.columnFilters[col.id];
+  const isAllSelected = !currentFilter; // If no filter → all selected
+
+  // Build dropdown HTML
+  const dropdown = document.createElement('div');
+  dropdown.id = 'colFilterDropdown';
+  dropdown.innerHTML = `
+    <div class="col-filter-header">
+      <span>🔽 Lọc: ${col.label}</span>
+      <button class="col-filter-close" id="colFilterClose">✕</button>
+    </div>
+    <div class="col-filter-search-wrap">
+      <input type="text" class="col-filter-search" id="colFilterSearch" placeholder="Tìm giá trị…" autocomplete="off">
+    </div>
+    <div class="col-filter-actions">
+      <button class="col-filter-action-btn" id="colFilterSelectAll">✅ Chọn tất cả</button>
+      <button class="col-filter-action-btn" id="colFilterSelectNone">☐ Bỏ hết</button>
+    </div>
+    <div class="col-filter-list" id="colFilterList">
+      ${sortedValues.map(val => {
+        const checked = isAllSelected || (currentFilter && currentFilter.has(val));
+        const count = valCounts.get(val);
+        const escaped = val.replace(/"/g, '&quot;').replace(/</g, '&lt;');
+        return `<label class="col-filter-item" data-val="${escaped}" data-search="${val.toLowerCase()}">
+          <input type="checkbox" value="${escaped}" ${checked ? 'checked' : ''}>
+          <span class="col-filter-val">${escaped}</span>
+          <span class="col-filter-count">${count}</span>
+        </label>`;
+      }).join('')}
+    </div>
+    <div class="col-filter-footer">
+      <button class="btn btn-ghost btn-sm" id="colFilterClear">Xóa bộ lọc</button>
+      <button class="btn btn-primary btn-sm" id="colFilterApply">Áp dụng</button>
+    </div>
+  `;
+  document.body.appendChild(dropdown);
+
+  // Position below the trigger button
+  const rect = triggerBtn.getBoundingClientRect();
+  const dropW = 260;
+  let left = rect.left;
+  // Clamp to viewport
+  if (left + dropW > window.innerWidth - 8) left = window.innerWidth - dropW - 8;
+  if (left < 8) left = 8;
+  dropdown.style.top = (rect.bottom + 4) + 'px';
+  dropdown.style.left = left + 'px';
+
+  // Search filter
+  const searchInput = dropdown.querySelector('#colFilterSearch');
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.toLowerCase().trim();
+    dropdown.querySelectorAll('.col-filter-item').forEach(item => {
+      const match = item.dataset.search.includes(q);
+      item.style.display = match ? '' : 'none';
+    });
+  });
+
+  // Select all / none
+  dropdown.querySelector('#colFilterSelectAll').addEventListener('click', () => {
+    dropdown.querySelectorAll('.col-filter-item input[type=checkbox]').forEach(cb => {
+      if (cb.closest('.col-filter-item').style.display !== 'none') cb.checked = true;
+    });
+  });
+  dropdown.querySelector('#colFilterSelectNone').addEventListener('click', () => {
+    dropdown.querySelectorAll('.col-filter-item input[type=checkbox]').forEach(cb => {
+      if (cb.closest('.col-filter-item').style.display !== 'none') cb.checked = false;
+    });
+  });
+
+  // Apply
+  dropdown.querySelector('#colFilterApply').addEventListener('click', () => {
+    const checkedVals = new Set();
+    dropdown.querySelectorAll('.col-filter-item input[type=checkbox]:checked').forEach(cb => {
+      checkedVals.add(cb.value);
+    });
+
+    // If all values are checked → remove filter (= no filter)
+    if (checkedVals.size >= sortedValues.length) {
+      delete State.columnFilters[col.id];
+    } else if (checkedVals.size === 0) {
+      // Nothing selected → filter everything out (empty set)
+      State.columnFilters[col.id] = new Set(['__IMPOSSIBLE_VALUE__']);
+    } else {
+      State.columnFilters[col.id] = checkedVals;
+    }
+
+    dropdown.remove();
+    applyFiltersAndSort();
+    renderList();
+  });
+
+  // Clear filter for this column
+  dropdown.querySelector('#colFilterClear').addEventListener('click', () => {
+    delete State.columnFilters[col.id];
+    dropdown.remove();
+    applyFiltersAndSort();
+    renderList();
+  });
+
+  // Close
+  dropdown.querySelector('#colFilterClose').addEventListener('click', () => dropdown.remove());
+
+  // Close on outside click
+  setTimeout(() => {
+    document.addEventListener('mousedown', function outsideClick(e) {
+      if (!dropdown.contains(e.target) && !triggerBtn.contains(e.target)) {
+        dropdown.remove();
+        document.removeEventListener('mousedown', outsideClick);
+      }
+    });
+  }, 50);
+
+  // Focus search
+  setTimeout(() => searchInput.focus(), 100);
 }
 
 // ── V2: Delete column with custom confirm ─────────

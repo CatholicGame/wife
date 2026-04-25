@@ -743,6 +743,182 @@
     .ws-icon-btn.selected {
       outline: 2px solid var(--accent);
     }
+
+    /* ── Column Filter Button (Google Sheets style) ── */
+    .col-filter-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      cursor: pointer;
+      padding: 1px 3px;
+      border-radius: 3px;
+      line-height: 1;
+      transition: all 0.15s;
+      opacity: 0.5;
+    }
+
+    .col-filter-btn:hover {
+      opacity: 1;
+      color: var(--accent);
+      background: rgba(0, 212, 170, 0.1);
+    }
+
+    .col-filter-btn.active {
+      opacity: 1;
+      color: #000;
+      background: var(--accent);
+      border-radius: 4px;
+      font-weight: 700;
+    }
+
+    /* ── Column Filter Dropdown ── */
+    #colFilterDropdown {
+      position: fixed;
+      z-index: 250;
+      width: 260px;
+      max-height: 420px;
+      background: rgba(18, 24, 35, 0.98);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(0, 212, 170, 0.25);
+      border-radius: 12px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: panelFadeIn 0.15s ease;
+    }
+
+    .col-filter-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: rgba(0, 212, 170, 0.08);
+      border-bottom: 1px solid rgba(0, 212, 170, 0.15);
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .col-filter-close {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0 2px;
+    }
+
+    .col-filter-search-wrap {
+      padding: 8px 10px 4px;
+      flex-shrink: 0;
+    }
+
+    .col-filter-search {
+      width: 100%;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 0.78rem;
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .col-filter-search:focus {
+      border-color: var(--accent);
+    }
+
+    .col-filter-actions {
+      display: flex;
+      gap: 4px;
+      padding: 4px 10px;
+      flex-shrink: 0;
+    }
+
+    .col-filter-action-btn {
+      background: rgba(0, 212, 170, 0.08);
+      border: 1px solid rgba(0, 212, 170, 0.2);
+      border-radius: 6px;
+      color: var(--accent);
+      font-size: 0.68rem;
+      padding: 3px 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+      flex: 1;
+      text-align: center;
+    }
+
+    .col-filter-action-btn:hover {
+      background: rgba(0, 212, 170, 0.2);
+    }
+
+    .col-filter-list {
+      overflow-y: auto;
+      max-height: 220px;
+      padding: 4px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .col-filter-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 6px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.78rem;
+      color: var(--text-primary);
+      transition: background 0.1s;
+      user-select: none;
+    }
+
+    .col-filter-item:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .col-filter-item input[type="checkbox"] {
+      accent-color: var(--accent);
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+
+    .col-filter-val {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    .col-filter-count {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      flex-shrink: 0;
+      background: rgba(255, 255, 255, 0.06);
+      padding: 1px 5px;
+      border-radius: var(--radius-full);
+    }
+
+    .col-filter-footer {
+      display: flex;
+      gap: 8px;
+      padding: 8px 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      flex-shrink: 0;
+    }
+
+    .col-filter-footer .btn {
+      flex: 1;
+    }
   </style>
 </head>
 
