@@ -237,16 +237,28 @@ function applyFiltersAndSort() {
     if (af.status && af.status !== 'all') {
       rows = rows.filter((r) => colVal(r, 'STATUS') === af.status);
     }
-    if (af.price && af.price !== 'all') {
+    // Price slider filter — priceMin/priceMax in ỷ (default 1–20)
+    const pMin = (af.priceMin !== undefined) ? af.priceMin : 1;
+    const pMax = (af.priceMax !== undefined) ? af.priceMax : 20;
+    // Only filter when range is not full default
+    if (pMin > 1 || pMax < 20) {
       rows = rows.filter((r) => {
         const p = parseFloat(colVal(r, 'PRICE'));
-        if (isNaN(p)) return false; // Ignore item if no price but price filter active
-
-        if (af.price === '0-3') return p < 3;
-        if (af.price === '3-5') return p >= 3 && p <= 5;
-        if (af.price === '5-10') return p > 5 && p <= 10;
-        if (af.price === '10-999') return p > 10;
-        return true;
+        if (isNaN(p)) return false;
+        return p >= pMin && p <= pMax;
+      });
+    }
+    // Price/m² slider filter — priceM2Min/priceM2Max in triệu/m² (default 0–200)
+    const pm2Min = (af.priceM2Min !== undefined) ? af.priceM2Min : 0;
+    const pm2Max = (af.priceM2Max !== undefined) ? af.priceM2Max : 200;
+    if (pm2Min > 0 || pm2Max < 200) {
+      rows = rows.filter((r) => {
+        const raw = colVal(r, 'PRICE_M2');
+        const n = parseFloat(String(raw).replace(/,/g, '.').replace(/[^0-9.\-]/g, ''));
+        if (isNaN(n) || n === 0) return false;
+        // Normalize: n>5 → already in triệu, n<=5 → in tỷ → convert to triệu
+        const inMillion = n > 5 ? n : n * 1000;
+        return inMillion >= pm2Min && inMillion <= pm2Max;
       });
     }
   }
@@ -1084,18 +1096,27 @@ function openColumnFilterDropdown(col, triggerBtn) {
 
   // Reapply advanced filter (BDS only)
   if (isBDS) {
-    const af = State.advancedFilter || { type: 'all', price: 'all', status: 'all' };
+    const af = State.advancedFilter || { type: 'all', priceMin: 1, priceMax: 20, status: 'all' };
     if (af.type && af.type !== 'all') baseRows = baseRows.filter(r => colVal(r, 'TYPE') === af.type);
     if (af.status && af.status !== 'all') baseRows = baseRows.filter(r => colVal(r, 'STATUS') === af.status);
-    if (af.price && af.price !== 'all') {
+    const pMin = (af.priceMin !== undefined) ? af.priceMin : 1;
+    const pMax = (af.priceMax !== undefined) ? af.priceMax : 20;
+    if (pMin > 1 || pMax < 20) {
       baseRows = baseRows.filter(r => {
         const p = parseFloat(colVal(r, 'PRICE'));
         if (isNaN(p)) return false;
-        if (af.price === '0-3') return p < 3;
-        if (af.price === '3-5') return p >= 3 && p <= 5;
-        if (af.price === '5-10') return p > 5 && p <= 10;
-        if (af.price === '10-999') return p > 10;
-        return true;
+        return p >= pMin && p <= pMax;
+      });
+    }
+    const pm2Min = (af.priceM2Min !== undefined) ? af.priceM2Min : 0;
+    const pm2Max = (af.priceM2Max !== undefined) ? af.priceM2Max : 200;
+    if (pm2Min > 0 || pm2Max < 200) {
+      baseRows = baseRows.filter(r => {
+        const raw = colVal(r, 'PRICE_M2');
+        const n = parseFloat(String(raw).replace(/,/g, '.').replace(/[^0-9.\-]/g, ''));
+        if (isNaN(n) || n === 0) return false;
+        const inMillion = n > 5 ? n : n * 1000;
+        return inMillion >= pm2Min && inMillion <= pm2Max;
       });
     }
   }
@@ -1677,19 +1698,95 @@ document.addEventListener('DOMContentLoaded', () => {
   // (View toggle removed — chỉ dùng V2 table)
 
   // Advanced Filter Modal Logic
-  State.advancedFilter = { type: 'all', price: 'all', status: 'all' };
+  State.advancedFilter = { type: 'all', priceMin: 1, priceMax: 20, status: 'all' };
 
-  const btnAdv = document.getElementById('btnAdvancedFilter');
-  const advModal = document.getElementById('advancedFilterModal');
-  const typeSel = document.getElementById('filterType');
-  const priceSel = document.getElementById('filterPrice');
+  const btnAdv    = document.getElementById('btnAdvancedFilter');
+  const advModal  = document.getElementById('advancedFilterModal');
+  const typeSel   = document.getElementById('filterType');
   const statusSel = document.getElementById('filterStatus');
+
+  // ─ Price Slider helpers ─
+  const sliderMin    = document.getElementById('filterPriceMin');
+  const sliderMax    = document.getElementById('filterPriceMax');
+  const labelMin     = document.getElementById('priceMinLabel');
+  const labelMax     = document.getElementById('priceMaxLabel');
+  const sliderRange  = document.getElementById('priceSliderRange');
+
+  // ─ Price/m² Slider helpers ─
+  const sliderM2Min   = document.getElementById('filterPriceM2Min');
+  const sliderM2Max   = document.getElementById('filterPriceM2Max');
+  const labelM2Min    = document.getElementById('priceM2MinLabel');
+  const labelM2Max    = document.getElementById('priceM2MaxLabel');
+  const sliderM2Range = document.getElementById('priceM2SliderRange');
+
+  function _updateSliderUI() {
+    const min = parseFloat(sliderMin.value);
+    const max = parseFloat(sliderMax.value);
+    const total = parseFloat(sliderMin.max) - parseFloat(sliderMin.min);
+    const leftPct  = ((min - parseFloat(sliderMin.min)) / total) * 100;
+    const rightPct = ((parseFloat(sliderMax.max) - max)  / total) * 100;
+    if (sliderRange) {
+      sliderRange.style.left  = leftPct  + '%';
+      sliderRange.style.right = rightPct + '%';
+    }
+    const fmt = v => (v % 1 === 0 ? v : v.toFixed(1)) + ' tỷ';
+    if (labelMin) labelMin.textContent = fmt(min);
+    if (labelMax) labelMax.textContent = max >= 20 ? '20+ tỷ' : fmt(max);
+  }
+
+  function _updateM2SliderUI() {
+    const min = parseFloat(sliderM2Min.value);
+    const max = parseFloat(sliderM2Max.value);
+    const total = parseFloat(sliderM2Min.max) - parseFloat(sliderM2Min.min);
+    const leftPct  = ((min - parseFloat(sliderM2Min.min)) / total) * 100;
+    const rightPct = ((parseFloat(sliderM2Max.max) - max)  / total) * 100;
+    if (sliderM2Range) {
+      sliderM2Range.style.left  = leftPct  + '%';
+      sliderM2Range.style.right = rightPct + '%';
+    }
+    const fmtM2 = v => v + ' tr/m²';
+    if (labelM2Min) labelM2Min.textContent = fmtM2(min);
+    if (labelM2Max) labelM2Max.textContent = max >= 200 ? '200+ tr/m²' : fmtM2(max);
+  }
+
+  if (sliderMin && sliderMax) {
+    sliderMin.addEventListener('input', () => {
+      if (parseFloat(sliderMin.value) > parseFloat(sliderMax.value) - 0.5)
+        sliderMin.value = parseFloat(sliderMax.value) - 0.5;
+      _updateSliderUI();
+    });
+    sliderMax.addEventListener('input', () => {
+      if (parseFloat(sliderMax.value) < parseFloat(sliderMin.value) + 0.5)
+        sliderMax.value = parseFloat(sliderMin.value) + 0.5;
+      _updateSliderUI();
+    });
+    _updateSliderUI(); // init
+  }
+
+  if (sliderM2Min && sliderM2Max) {
+    sliderM2Min.addEventListener('input', () => {
+      if (parseFloat(sliderM2Min.value) > parseFloat(sliderM2Max.value) - 5)
+        sliderM2Min.value = parseFloat(sliderM2Max.value) - 5;
+      _updateM2SliderUI();
+    });
+    sliderM2Max.addEventListener('input', () => {
+      if (parseFloat(sliderM2Max.value) < parseFloat(sliderM2Min.value) + 5)
+        sliderM2Max.value = parseFloat(sliderM2Min.value) + 5;
+      _updateM2SliderUI();
+    });
+    _updateM2SliderUI(); // init
+  }
 
   btnAdv?.addEventListener('click', () => {
     // Sync current state to UI
     typeSel.value = State.advancedFilter.type;
-    priceSel.value = State.advancedFilter.price;
     statusSel.value = State.advancedFilter.status;
+    if (sliderMin) sliderMin.value = State.advancedFilter.priceMin ?? 1;
+    if (sliderMax) sliderMax.value = State.advancedFilter.priceMax ?? 20;
+    _updateSliderUI();
+    if (sliderM2Min) sliderM2Min.value = State.advancedFilter.priceM2Min ?? 0;
+    if (sliderM2Max) sliderM2Max.value = State.advancedFilter.priceM2Max ?? 200;
+    _updateM2SliderUI();
     advModal.classList.remove('hidden');
   });
 
@@ -1699,22 +1796,36 @@ document.addEventListener('DOMContentLoaded', () => {
   
   document.getElementById('btnClearFilter')?.addEventListener('click', () => {
     typeSel.value = 'all';
-    priceSel.value = 'all';
     statusSel.value = 'all';
+    if (sliderMin)   sliderMin.value   = 1;
+    if (sliderMax)   sliderMax.value   = 20;
+    if (sliderM2Min) sliderM2Min.value = 0;
+    if (sliderM2Max) sliderM2Max.value = 200;
+    _updateSliderUI();
+    _updateM2SliderUI();
   });
 
   document.getElementById('btnApplyFilter')?.addEventListener('click', () => {
+    const pMin   = parseFloat(sliderMin?.value   ?? 1);
+    const pMax   = parseFloat(sliderMax?.value   ?? 20);
+    const pm2Min = parseFloat(sliderM2Min?.value ?? 0);
+    const pm2Max = parseFloat(sliderM2Max?.value ?? 200);
     State.advancedFilter = {
-      type: typeSel.value,
-      price: priceSel.value,
-      status: statusSel.value
+      type:      typeSel.value,
+      priceMin:  pMin,
+      priceMax:  pMax,
+      priceM2Min: pm2Min,
+      priceM2Max: pm2Max,
+      status:    statusSel.value
     };
     advModal.classList.add('hidden');
     applyFiltersAndSort();
     renderList();
     
     // Highlight button if active filter differs from default
-    if (State.advancedFilter.type !== 'all' || State.advancedFilter.price !== 'all' || State.advancedFilter.status !== 'all') {
+    const priceActive = pMin > 1 || pMax < 20;
+    const m2Active    = pm2Min > 0 || pm2Max < 200;
+    if (State.advancedFilter.type !== 'all' || priceActive || m2Active || State.advancedFilter.status !== 'all') {
       btnAdv.classList.add('badge-accent');
     } else {
       btnAdv.classList.remove('badge-accent');

@@ -357,11 +357,11 @@
     #colSettingsPanel {
       position: fixed;
       z-index: 200;
-      background: rgba(22, 27, 37, 0.97);
+      background: var(--bg-card);
       backdrop-filter: blur(16px);
-      border: 1px solid rgba(0, 212, 170, 0.25);
+      border: 1px solid var(--border-focus);
       border-radius: 14px;
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+      box-shadow: var(--shadow-float);
       width: 280px;
       max-height: 70vh;
       display: flex;
@@ -387,7 +387,7 @@
       align-items: center;
       justify-content: space-between;
       padding: 10px 14px;
-      background: rgba(0, 212, 170, 0.08);
+      background: var(--accent-bg);
       border-bottom: 1px solid rgba(0, 212, 170, 0.15);
       font-size: 0.82rem;
       font-weight: 600;
@@ -454,7 +454,7 @@
     }
 
     .col-toggle-item:hover {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--bg-card-hover);
     }
 
     .col-toggle-system {
@@ -555,11 +555,11 @@
       z-index: 300;
       width: 320px;
       max-height: 75vh;
-      background: rgba(18, 24, 35, 0.98);
+      background: var(--bg-card);
       backdrop-filter: blur(20px);
-      border: 1px solid rgba(255,255,255,0.1);
+      border: 1px solid var(--border);
       border-radius: 14px;
-      box-shadow: 0 16px 50px rgba(0,0,0,0.6);
+      box-shadow: var(--shadow-float);
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -571,8 +571,8 @@
       align-items: center;
       justify-content: space-between;
       padding: 12px 14px;
-      background: rgba(255,255,255,0.04);
-      border-bottom: 1px solid rgba(255,255,255,0.07);
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
       font-size: 0.82rem;
       font-weight: 700;
       color: var(--text-primary);
@@ -778,11 +778,11 @@
       z-index: 250;
       width: 260px;
       max-height: 420px;
-      background: rgba(18, 24, 35, 0.98);
+      background: var(--bg-card);
       backdrop-filter: blur(20px);
-      border: 1px solid rgba(0, 212, 170, 0.25);
+      border: 1px solid var(--border-focus);
       border-radius: 12px;
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+      box-shadow: var(--shadow-float);
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -794,7 +794,7 @@
       align-items: center;
       justify-content: space-between;
       padding: 10px 12px;
-      background: rgba(0, 212, 170, 0.08);
+      background: var(--accent-bg);
       border-bottom: 1px solid rgba(0, 212, 170, 0.15);
       font-size: 0.78rem;
       font-weight: 600;
@@ -880,7 +880,7 @@
     }
 
     .col-filter-item:hover {
-      background: rgba(255, 255, 255, 0.06);
+      background: var(--bg-card-hover);
     }
 
     .col-filter-item input[type="checkbox"] {
@@ -903,7 +903,7 @@
       font-size: 0.68rem;
       color: var(--text-muted);
       flex-shrink: 0;
-      background: rgba(255, 255, 255, 0.06);
+      background: var(--bg-surface);
       padding: 1px 5px;
       border-radius: var(--radius-full);
     }
@@ -912,12 +912,109 @@
       display: flex;
       gap: 8px;
       padding: 8px 10px;
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      border-top: 1px solid var(--border);
       flex-shrink: 0;
     }
 
     .col-filter-footer .btn {
       flex: 1;
+    }
+
+    /* ── Price Range Slider ── */
+    .price-slider-wrap {
+      position: relative;
+      padding: 10px 4px 4px;
+    }
+
+    .price-slider-track {
+      position: relative;
+      height: 6px;
+      background: var(--bg-surface);
+      border-radius: 3px;
+      margin: 0 0 14px;
+    }
+
+    .price-slider-range {
+      position: absolute;
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), #00a88a);
+      border-radius: 3px;
+      pointer-events: none;
+    }
+
+    .price-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      position: absolute;
+      top: 50%;
+      width: 100%;
+      height: 6px;
+      background: transparent;
+      pointer-events: none;
+      outline: none;
+      transform: translateY(-50%);
+    }
+
+    .price-slider-thumb::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 3px solid var(--bg-card);
+      box-shadow: 0 2px 8px rgba(0,212,170,0.4);
+      cursor: grab;
+      pointer-events: all;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .price-slider-thumb::-webkit-slider-thumb:active {
+      cursor: grabbing;
+      transform: scale(1.2);
+      box-shadow: 0 3px 14px rgba(0,212,170,0.6);
+    }
+
+    .price-slider-thumb::-moz-range-thumb {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 3px solid var(--bg-card);
+      box-shadow: 0 2px 8px rgba(0,212,170,0.4);
+      cursor: grab;
+      pointer-events: all;
+    }
+
+    .price-range-labels {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 6px;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    .price-range-value {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .price-range-badge {
+      background: rgba(0,212,170,0.12);
+      border: 1px solid rgba(0,212,170,0.3);
+      border-radius: 8px;
+      padding: 4px 12px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .price-range-sep {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      padding: 0 6px;
     }
   </style>
 </head>
@@ -1248,14 +1345,53 @@ Xấu"></textarea>
         </div>
 
         <div>
-          <label style="display:block; font-size:0.85rem; font-weight:600; color:var(--text-secondary); margin-bottom:8px">Khoảng Giá</label>
-          <select id="filterPrice" class="form-input" style="width: 100%; appearance: auto; background-color: var(--bg-input);">
-            <option value="all">Mọi mức giá</option>
-            <option value="0-3">Dưới 3 Tỷ</option>
-            <option value="3-5">Từ 3 - 5 Tỷ</option>
-            <option value="5-10">Từ 5 - 10 Tỷ</option>
-            <option value="10-999">Trên 10 Tỷ</option>
-          </select>
+          <label style="display:block; font-size:0.85rem; font-weight:600; color:var(--text-secondary); margin-bottom:8px">💰 Khoảng Giá (tỷ đồng)</label>
+          <div class="price-range-value">
+            <span class="price-range-badge" id="priceMinLabel">1 tỷ</span>
+            <span class="price-range-sep">—</span>
+            <span class="price-range-badge" id="priceMaxLabel">20 tỷ</span>
+          </div>
+          <div class="price-slider-wrap">
+            <div class="price-slider-track">
+              <div class="price-slider-range" id="priceSliderRange"></div>
+            </div>
+            <input type="range" id="filterPriceMin" class="price-slider-thumb"
+              min="1" max="20" step="0.5" value="1">
+            <input type="range" id="filterPriceMax" class="price-slider-thumb"
+              min="1" max="20" step="0.5" value="20">
+          </div>
+          <div class="price-range-labels">
+            <span>1 tỷ</span>
+            <span>5 tỷ</span>
+            <span>10 tỷ</span>
+            <span>15 tỷ</span>
+            <span>20 tỷ</span>
+          </div>
+        </div>
+
+        <div>
+          <label style="display:block; font-size:0.85rem; font-weight:600; color:var(--text-secondary); margin-bottom:8px">📐 Giá / m² (triệu đồng)</label>
+          <div class="price-range-value">
+            <span class="price-range-badge" id="priceM2MinLabel">0 tr/m²</span>
+            <span class="price-range-sep">—</span>
+            <span class="price-range-badge" id="priceM2MaxLabel">200 tr/m²</span>
+          </div>
+          <div class="price-slider-wrap">
+            <div class="price-slider-track">
+              <div class="price-slider-range" id="priceM2SliderRange"></div>
+            </div>
+            <input type="range" id="filterPriceM2Min" class="price-slider-thumb"
+              min="0" max="200" step="5" value="0">
+            <input type="range" id="filterPriceM2Max" class="price-slider-thumb"
+              min="0" max="200" step="5" value="200">
+          </div>
+          <div class="price-range-labels">
+            <span>0</span>
+            <span>50 tr</span>
+            <span>100 tr</span>
+            <span>150 tr</span>
+            <span>200 tr</span>
+          </div>
         </div>
 
         <div>
