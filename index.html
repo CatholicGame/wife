@@ -15,11 +15,10 @@
       padding-top: var(--nav-height);
     }
 
-    /* ─ Header search bar ─ */
     .search-section {
       position: sticky;
       top: var(--nav-height);
-      background: rgba(13, 17, 23, 0.95);
+      background: var(--bg-overlay);
       backdrop-filter: blur(12px);
       padding: var(--space-3) var(--space-4);
       z-index: 80;
@@ -1029,10 +1028,13 @@
       <span class="ws-nav-name" id="wsNavName">Sheet</span>
       <span class="ws-nav-chevron">▾</span>
     </button>
-    <a href="index.html" class="nav-logo" style="margin: 0 auto">
+    <div class="nav-spacer"></div>
+    <a href="index.html" class="nav-logo">
       <span class="logo-icon">🏠</span>
       <span>BĐS <span class="logo-text">Khảo Sát</span></span>
     </a>
+    <div class="nav-spacer"></div>
+    <!-- theme.js will inject #themeToggleBtn here -->
   </nav>
 
   <!-- ── Login Screen ── -->
@@ -1323,91 +1325,21 @@ Xấu"></textarea>
     </div>
   </div>
 
-  <!-- ── Advanced Filter Modal ── -->
+  <!-- ── Advanced Filter Modal (Smart Filter Panel — rendered by JS) ── -->
   <div id="advancedFilterModal" class="modal-backdrop hidden">
-    <div class="modal-sheet" style="max-height: 85vh; display: flex; flex-direction: column;">
+    <div class="modal-sheet smart-filter-modal">
       <div class="modal-header">
-        <h3 style="margin:0; font-size:1.1rem">Bộ Lọc Mở Rộng</h3>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:1.1rem">🔽</span>
+          <h3 style="margin:0;font-size:1.05rem;font-weight:700">Bộ Lọc Thông Minh</h3>
+          <span id="smartFilterBadge" class="smart-filter-active-badge hidden"></span>
+        </div>
         <button class="btn btn-ghost btn-sm" id="btnCloseFilter">✕</button>
       </div>
-      <div class="modal-body" style="padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); overflow-y: auto;">
-        
-        <div>
-          <label style="display:block; font-size:0.85rem; font-weight:600; color:var(--text-secondary); margin-bottom:8px">Loại Bất Động Sản</label>
-          <select id="filterType" class="form-input" style="width: 100%; appearance: auto; background-color: var(--bg-input);">
-            <option value="all">Tất cả</option>
-            <option value="Nhà tầng">Nhà tầng</option>
-            <option value="Đất">Đất</option>
-            <option value="Căn hộ">Căn hộ chung cư</option>
-            <option value="Biệt thự">Biệt thự</option>
-            <option value="Nhà cấp 4">Nhà cấp 4</option>
-          </select>
-        </div>
-
-        <div>
-          <label style="display:block; font-size:0.85rem; font-weight:600; color:var(--text-secondary); margin-bottom:8px">💰 Khoảng Giá (tỷ đồng)</label>
-          <div class="price-range-value">
-            <span class="price-range-badge" id="priceMinLabel">1 tỷ</span>
-            <span class="price-range-sep">—</span>
-            <span class="price-range-badge" id="priceMaxLabel">20 tỷ</span>
-          </div>
-          <div class="price-slider-wrap">
-            <div class="price-slider-track">
-              <div class="price-slider-range" id="priceSliderRange"></div>
-            </div>
-            <input type="range" id="filterPriceMin" class="price-slider-thumb"
-              min="1" max="20" step="0.5" value="1">
-            <input type="range" id="filterPriceMax" class="price-slider-thumb"
-              min="1" max="20" step="0.5" value="20">
-          </div>
-          <div class="price-range-labels">
-            <span>1 tỷ</span>
-            <span>5 tỷ</span>
-            <span>10 tỷ</span>
-            <span>15 tỷ</span>
-            <span>20 tỷ</span>
-          </div>
-        </div>
-
-        <div>
-          <label style="display:block; font-size:0.85rem; font-weight:600; color:var(--text-secondary); margin-bottom:8px">📐 Giá / m² (triệu đồng)</label>
-          <div class="price-range-value">
-            <span class="price-range-badge" id="priceM2MinLabel">0 tr/m²</span>
-            <span class="price-range-sep">—</span>
-            <span class="price-range-badge" id="priceM2MaxLabel">200 tr/m²</span>
-          </div>
-          <div class="price-slider-wrap">
-            <div class="price-slider-track">
-              <div class="price-slider-range" id="priceM2SliderRange"></div>
-            </div>
-            <input type="range" id="filterPriceM2Min" class="price-slider-thumb"
-              min="0" max="200" step="5" value="0">
-            <input type="range" id="filterPriceM2Max" class="price-slider-thumb"
-              min="0" max="200" step="5" value="200">
-          </div>
-          <div class="price-range-labels">
-            <span>0</span>
-            <span>50 tr</span>
-            <span>100 tr</span>
-            <span>150 tr</span>
-            <span>200 tr</span>
-          </div>
-        </div>
-
-        <div>
-          <label style="display:block; font-size:0.85rem; font-weight:600; color:var(--text-secondary); margin-bottom:8px">Trạng Thái Khảo Sát</label>
-          <select id="filterStatus" class="form-input" style="width: 100%; appearance: auto; background-color: var(--bg-input);">
-            <option value="all">Tất cả trạng thái</option>
-            <option value="Tiềm năng">⭐ Tiềm năng</option>
-            <option value="Đang xem xét">🔍 Đang xem xét</option>
-            <option value="Đã chốt">✅ Đã chốt</option>
-            <option value="Bỏ qua">❌ Bỏ qua</option>
-          </select>
-        </div>
-
-      </div>
-      <div style="padding: var(--space-3) var(--space-4); border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end;">
-        <button class="btn btn-ghost" id="btnClearFilter">Thiết lập lại</button>
+      <!-- JS renders all filter sections here -->
+      <div id="smartFilterBody" class="smart-filter-body"></div>
+      <div class="smart-filter-footer">
+        <button class="btn btn-ghost" id="btnClearFilter">↺ Thiết lập lại</button>
         <button class="btn btn-primary" id="btnApplyFilter">Áp dụng</button>
       </div>
     </div>

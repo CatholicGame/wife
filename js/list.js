@@ -59,8 +59,9 @@ const State = {
   activeStatus: null,
   sortBy: 'date-desc',
   isLoading: false,
-  viewMode: 'refactor', // Only V2 table
-  columnFilters: {},    // { colId: Set<selectedValues> } — Google Sheets-style per-column filters
+  viewMode: 'refactor',
+  columnFilters: {},   // legacy, kept for compatibility
+  smartFilters: {},    // { key: { type, value } } — Smart Filter Panel
 };
 
 // ─── Column Mapping ───────────────────────────────────────────────────────────
@@ -227,65 +228,34 @@ function applyFiltersAndSort() {
     });
   }
 
-  // Type & Status & Price filters
-  if (isBDS) {
-    const af = State.advancedFilter || { type: 'all', price: 'all', status: 'all' };
-
-    if (af.type && af.type !== 'all') {
-      rows = rows.filter((r) => colVal(r, 'TYPE') === af.type);
-    }
-    if (af.status && af.status !== 'all') {
-      rows = rows.filter((r) => colVal(r, 'STATUS') === af.status);
-    }
-    // Price slider filter — priceMin/priceMax in ỷ (default 1–20)
-    const pMin = (af.priceMin !== undefined) ? af.priceMin : 1;
-    const pMax = (af.priceMax !== undefined) ? af.priceMax : 20;
-    // Only filter when range is not full default
-    if (pMin > 1 || pMax < 20) {
-      rows = rows.filter((r) => {
-        const p = parseFloat(colVal(r, 'PRICE'));
-        if (isNaN(p)) return false;
-        return p >= pMin && p <= pMax;
-      });
-    }
-    // Price/m² slider filter — priceM2Min/priceM2Max in triệu/m² (default 0–200)
-    const pm2Min = (af.priceM2Min !== undefined) ? af.priceM2Min : 0;
-    const pm2Max = (af.priceM2Max !== undefined) ? af.priceM2Max : 200;
-    if (pm2Min > 0 || pm2Max < 200) {
-      rows = rows.filter((r) => {
-        const raw = colVal(r, 'PRICE_M2');
-        const n = parseFloat(String(raw).replace(/,/g, '.').replace(/[^0-9.\-]/g, ''));
-        if (isNaN(n) || n === 0) return false;
-        // Normalize: n>5 → already in triệu, n<=5 → in tỷ → convert to triệu
-        const inMillion = n > 5 ? n : n * 1000;
-        return inMillion >= pm2Min && inMillion <= pm2Max;
-      });
-    }
-  }
-
-  // ── Google Sheets-style column filters ──
-  if (Object.keys(State.columnFilters).length > 0) {
-    const allCols = getV2Columns();
+  // ── Smart Filter Panel filters ──────────────────────────
+  const sf = State.smartFilters || {};
+  for (const [key, rule] of Object.entries(sf)) {
+    if (!rule || rule.type === 'none') continue;
     rows = rows.filter(row => {
-      for (const [colId, allowedSet] of Object.entries(State.columnFilters)) {
-        if (!allowedSet || allowedSet.size === 0) continue;
-        const col = allCols.find(c => c.id === colId);
-        if (!col) continue;
-        let val = '';
-        if (col.knownKey) {
-          val = colVal(row, col.knownKey);
-        } else if (col.headerName) {
-          val = row[col.headerName];
-          if (val === undefined) {
-            const lowerHeader = col.headerName.toLowerCase().trim();
-            const actualKey = Object.keys(row).find(k => k.toLowerCase().trim() === lowerHeader);
-            if (actualKey) val = row[actualKey];
-          }
-          val = val || '';
-        }
-        val = String(val).trim();
-        if (val === '') val = '(Trống)';
-        if (!allowedSet.has(val)) return false;
+      const rawVal = key.startsWith('_h:') ? (row[key.slice(3)] || '') : colVal(row, key);
+      if (rule.type === 'range') {
+        const n = parseFloat(String(rawVal).replace(/,/g, '.').replace(/[^0-9.\-]/g, ''));
+        if (isNaN(n)) return rule.includeEmpty !== false ? false : true;
+        // PRICE_M2: normalize to triệu
+        const val = (key === 'PRICE_M2' && n <= 5 && n > 0) ? n * 1000 : n;
+        return val >= rule.min && val <= rule.max;
+      }
+      if (rule.type === 'chips') {
+        if (!rule.selected || rule.selected.size === 0) return true;
+        const v = String(rawVal).trim() || '(Trống)';
+        return rule.selected.has(v);
+      }
+      if (rule.type === 'text') {
+        if (!rule.value) return true;
+        return String(rawVal).toLowerCase().includes(rule.value.toLowerCase());
+      }
+      if (rule.type === 'date') {
+        if (!rule.from && !rule.to) return true;
+        const dStr = String(rawVal).slice(0, 10);
+        if (rule.from && dStr < rule.from) return false;
+        if (rule.to   && dStr > rule.to)   return false;
+        return true;
       }
       return true;
     });
@@ -801,9 +771,7 @@ function renderV2Table() {
       ? ''
       : '<button class="v2-col-delete" data-col-idx="' + cols.indexOf(col) + '" title="Xóa cột">✕</button>';
     const typeIcon = col.fieldType && TYPE_ICONS[col.fieldType] ? `<span style="margin-left:4px;font-size:0.8rem;opacity:0.7" title="${col.fieldType}">${TYPE_ICONS[col.fieldType]}</span>` : '';
-    const isFilterActive = !!State.columnFilters[col.id];
-    const filterBtn = col.system ? '' : '<button class="col-filter-btn' + (isFilterActive ? ' active' : '') + '" data-filter-col="' + col.id + '" title="Lọc cột này">▾</button>';
-    return '<th style="background:' + bg + '"><div class="v2-th-wrap"><span style="display:inline-flex;align-items:center">' + col.label + typeIcon + '</span><div style="display:flex;gap:2px;align-items:center">' + filterBtn + deleteBtn + '</div></div></th>';
+    return '<th style="background:' + bg + '"><div class="v2-th-wrap"><span style="display:inline-flex;align-items:center">' + col.label + typeIcon + '</span>' + deleteBtn + '</div></th>';
   }).join('');
 
   // Build body
@@ -860,32 +828,8 @@ function renderV2Table() {
     return '<tr data-v2row="' + row._row + '" style="cursor:pointer">' + cells + '</tr>';
   }).join('');
 
-  // Clear all filter badge in header actions
-  const clearFilterBtnId = 'btnClearColFilters';
-  let existingClearBtn = document.getElementById(clearFilterBtnId);
-  if (hasAnyColFilter) {
-    if (!existingClearBtn) {
-      const headerActions = document.querySelector('.header-actions');
-      if (headerActions) {
-        existingClearBtn = document.createElement('button');
-        existingClearBtn.id = clearFilterBtnId;
-        existingClearBtn.className = 'btn btn-ghost btn-sm';
-        existingClearBtn.style.cssText = 'font-size:0.75rem;padding:4px 10px;white-space:nowrap;color:var(--accent);border-color:var(--accent)';
-        headerActions.insertBefore(existingClearBtn, headerActions.firstChild);
-      }
-    }
-    if (existingClearBtn) {
-      const filterCount = Object.keys(State.columnFilters).length;
-      existingClearBtn.textContent = '🔽 Bỏ lọc (' + filterCount + ')';
-      existingClearBtn.onclick = () => {
-        State.columnFilters = {};
-        applyFiltersAndSort();
-        renderList();
-      };
-    }
-  } else if (existingClearBtn) {
-    existingClearBtn.remove();
-  }
+  // Update filter button badge count
+  _updateFilterBtnBadge();
 
   container.innerHTML =
     '<table class="data-table">' +
@@ -921,16 +865,7 @@ function renderV2Table() {
     });
   });
 
-  // ── Column filter buttons (Google Sheets style) ──
-  container.querySelectorAll('.col-filter-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const colId = btn.dataset.filterCol;
-      const col = cols.find(c => c.id === colId);
-      if (!col) return;
-      openColumnFilterDropdown(col, btn);
-    });
-  });
+
 
   // ── Row selection + header delete button ──
   let _selectedRowNum = null;
@@ -1072,198 +1007,273 @@ function renderV2Table() {
   }
 }
 
-// ── Google Sheets-style Column Filter Dropdown ────────────────────────────────
-function openColumnFilterDropdown(col, triggerBtn) {
-  // Remove existing dropdown
-  document.getElementById('colFilterDropdown')?.remove();
+// ── Filter Button Badge ────────────────────────────────────────────────────────
+function _updateFilterBtnBadge() {
+  const btn = document.getElementById('btnAdvancedFilter');
+  if (!btn) return;
+  const count = Object.values(State.smartFilters || {}).filter(r => {
+    if (!r || r.type === 'none') return false;
+    if (r.type === 'range')  return r.min !== r.dataMin || r.max !== r.dataMax;
+    if (r.type === 'chips')  return r.selected && r.selected.size > 0;
+    if (r.type === 'text')   return !!r.value;
+    if (r.type === 'date')   return !!(r.from || r.to);
+    return false;
+  }).length;
 
-  // Collect all unique values for this column from ALL rows (before column filters, but after search+advanced)
-  // We use State.allRows and re-apply search+advanced (but NOT column filters) to get the base dataset
-  let baseRows = [...State.allRows];
+  // Update badge in modal header
+  const badge = document.getElementById('smartFilterBadge');
+  if (badge) {
+    badge.textContent = count;
+    badge.classList.toggle('hidden', count === 0);
+  }
+  // Update badge on the Lọc button
+  let pill = btn.querySelector('.filter-active-count');
+  if (count > 0) {
+    if (!pill) { pill = document.createElement('span'); pill.className = 'filter-active-count'; btn.appendChild(pill); }
+    pill.textContent = count;
+  } else if (pill) {
+    pill.remove();
+  }
+}
+
+// ── Smart Filter Panel ─────────────────────────────────────────────────────────
+function openSmartFilterPanel() {
+  const modal   = document.getElementById('advancedFilterModal');
+  const body    = document.getElementById('smartFilterBody');
+  if (!modal || !body) return;
+
+  const rows  = State.allRows;
   const isBDS = WorkspaceManager.isBDSMode(State.colMap);
 
-  // Reapply search
-  if (State.searchQuery) {
-    const q = State.searchQuery.toLowerCase();
-    baseRows = baseRows.filter(r => {
-      if (isBDS) {
-        return ['ADDRESS', 'DISTRICT', 'OWNER', 'NOTES'].some(key => colVal(r, key).toLowerCase().includes(q));
+  // ── Column definitions with filter type ─────────────────────────────────────
+  // type: 'range' | 'chips' | 'text' | 'date' | 'none'
+  const FILTER_DEFS = isBDS ? [
+    { key: 'TYPE',     label: 'Loại BĐS',         icon: '🏠', type: 'chips' },
+    { key: 'STATUS',   label: 'Tình trạng',        icon: '📌', type: 'chips' },
+    { key: 'DISTRICT', label: 'Quận / Huyện',     icon: '📍', type: 'chips' },
+    { key: 'PRICE',    label: 'Giá (tỷ đồng)',    icon: '💰', type: 'range', unit: 'tỷ',    step: 0.5, decimals: 1, isMax: v => v >= 20, maxSuffix: '20+ tỷ' },
+    { key: 'PRICE_M2', label: 'Giá / m²',         icon: '📐', type: 'range', unit: 'tr/m²', step: 5,   decimals: 0, isMax: v => v >= 200, maxSuffix: '200+ tr/m²' },
+    { key: 'AREA',     label: 'Diện tích (m²)',   icon: '📏', type: 'range', unit: 'm²',    step: 5,   decimals: 0 },
+    { key: 'SCORE',    label: 'Điểm đánh giá',    icon: '⭐', type: 'range', unit: '',       step: 0.5, decimals: 1 },
+    { key: 'FLOORS',   label: 'Số tầng',           icon: '🏢', type: 'range', unit: 'tầng',  step: 1,   decimals: 0 },
+    { key: 'DIR',      label: 'Hướng nhà',         icon: '🧭', type: 'chips' },
+    { key: 'LEGAL',    label: 'Pháp lý',           icon: '📋', type: 'chips' },
+    { key: 'OWNER',    label: 'Tìm theo đầu chủ', icon: '👤', type: 'text',  placeholder: 'Tên đầu chủ…' },
+    { key: 'DATE',     label: 'Ngày khảo sát',    icon: '📅', type: 'date' },
+  ] : [];
+
+  // ── Helper: get numeric values for a known key ────────────────────────────
+  function getNumVals(key) {
+    return rows.map(r => {
+      let n = parseFloat(String(colVal(r, key)).replace(/,/g, '.').replace(/[^0-9.\-]/g, ''));
+      if (key === 'PRICE_M2' && !isNaN(n) && n <= 5 && n > 0) n = n * 1000;
+      return n;
+    }).filter(n => !isNaN(n) && n > 0);
+  }
+
+  function getDistVals(key) {
+    const m = new Map();
+    rows.forEach(r => {
+      const v = String(colVal(r, key)).trim() || '(Trống)';
+      m.set(v, (m.get(v) || 0) + 1);
+    });
+    return m;
+  }
+
+  function fmtNum(v, def) {
+    if (!def) return String(v);
+    if (def.decimals === 0) return Math.round(v) + (def.unit ? ' ' + def.unit : '');
+    return v.toFixed(def.decimals) + (def.unit ? ' ' + def.unit : '');
+  }
+
+  // ── Build sections ──────────────────────────────────────────────────────────
+  body.innerHTML = '';
+
+  FILTER_DEFS.forEach(def => {
+    const sf = State.smartFilters;
+
+    // ── RANGE slider ──────────────────────────────────────────────────────────
+    if (def.type === 'range') {
+      const nums = getNumVals(def.key);
+      if (nums.length === 0) return;
+      const dataMin = Math.floor(Math.min(...nums));
+      const dataMax = Math.ceil(Math.max(...nums));
+      if (dataMin >= dataMax) return;
+
+      // Current state
+      const cur  = sf[def.key];
+      const curMin = (cur && cur.type === 'range') ? cur.min : dataMin;
+      const curMax = (cur && cur.type === 'range') ? cur.max : dataMax;
+
+      const sec = document.createElement('div');
+      sec.className = 'sf-section';
+      const minId = 'sfMin_' + def.key;
+      const maxId = 'sfMax_' + def.key;
+      const rangeId = 'sfRange_' + def.key;
+      const badgeMinId = 'sfBadgeMin_' + def.key;
+      const badgeMaxId = 'sfBadgeMax_' + def.key;
+
+      // Scale ticks
+      const ticks = 5;
+      const tickHtml = Array.from({length: ticks}, (_, i) => {
+        const v = dataMin + (dataMax - dataMin) * i / (ticks - 1);
+        return `<span>${fmtNum(v, def)}</span>`;
+      }).join('');
+
+      sec.innerHTML = `
+        <div class="sf-label"><span class="sf-label-icon">${def.icon}</span>${def.label}</div>
+        <div class="sf-slider-wrap">
+          <div class="sf-slider-badges">
+            <span class="sf-slider-badge" id="${badgeMinId}">${fmtNum(curMin, def)}</span>
+            <span class="sf-slider-sep">—</span>
+            <span class="sf-slider-badge" id="${badgeMaxId}">${def.isMax && def.isMax(curMax) ? (def.maxSuffix || fmtNum(curMax, def)) : fmtNum(curMax, def)}</span>
+          </div>
+          <div class="sf-slider-track-wrap">
+            <div class="sf-slider-track"><div class="sf-slider-range" id="${rangeId}"></div></div>
+            <input type="range" class="sf-slider-thumb" id="${minId}"
+              min="${dataMin}" max="${dataMax}" step="${def.step || 1}" value="${curMin}">
+            <input type="range" class="sf-slider-thumb" id="${maxId}"
+              min="${dataMin}" max="${dataMax}" step="${def.step || 1}" value="${curMax}">
+          </div>
+          <div class="sf-slider-scale">${tickHtml}</div>
+        </div>`;
+      body.appendChild(sec);
+
+      // Store dataMin/dataMax so badge update can compare
+      if (!sf[def.key] || sf[def.key].type !== 'range') {
+        sf[def.key] = { type: 'range', min: dataMin, max: dataMax, dataMin, dataMax };
       } else {
-        return (State.headers || []).some(h => (r[h] || '').toString().toLowerCase().includes(q));
+        sf[def.key].dataMin = dataMin;
+        sf[def.key].dataMax = dataMax;
       }
-    });
-  }
 
-  // Reapply advanced filter (BDS only)
-  if (isBDS) {
-    const af = State.advancedFilter || { type: 'all', priceMin: 1, priceMax: 20, status: 'all' };
-    if (af.type && af.type !== 'all') baseRows = baseRows.filter(r => colVal(r, 'TYPE') === af.type);
-    if (af.status && af.status !== 'all') baseRows = baseRows.filter(r => colVal(r, 'STATUS') === af.status);
-    const pMin = (af.priceMin !== undefined) ? af.priceMin : 1;
-    const pMax = (af.priceMax !== undefined) ? af.priceMax : 20;
-    if (pMin > 1 || pMax < 20) {
-      baseRows = baseRows.filter(r => {
-        const p = parseFloat(colVal(r, 'PRICE'));
-        if (isNaN(p)) return false;
-        return p >= pMin && p <= pMax;
+      const elMin = document.getElementById(minId);
+      const elMax = document.getElementById(maxId);
+      const elRange = document.getElementById(rangeId);
+      const elBMin = document.getElementById(badgeMinId);
+      const elBMax = document.getElementById(badgeMaxId);
+
+      function updateRangeUI() {
+        const mn = parseFloat(elMin.value), mx = parseFloat(elMax.value);
+        const total = dataMax - dataMin;
+        const lp = ((mn - dataMin) / total) * 100;
+        const rp = ((dataMax - mx)  / total) * 100;
+        elRange.style.left  = lp + '%';
+        elRange.style.right = rp + '%';
+        elBMin.textContent = fmtNum(mn, def);
+        elBMax.textContent = (def.isMax && def.isMax(mx)) ? (def.maxSuffix || fmtNum(mx, def)) : fmtNum(mx, def);
+        sf[def.key] = { type: 'range', min: mn, max: mx, dataMin, dataMax };
+      }
+      updateRangeUI();
+
+      elMin.addEventListener('input', () => {
+        if (parseFloat(elMin.value) > parseFloat(elMax.value) - (def.step || 1))
+          elMin.value = parseFloat(elMax.value) - (def.step || 1);
+        updateRangeUI();
+      });
+      elMax.addEventListener('input', () => {
+        if (parseFloat(elMax.value) < parseFloat(elMin.value) + (def.step || 1))
+          elMax.value = parseFloat(elMin.value) + (def.step || 1);
+        updateRangeUI();
       });
     }
-    const pm2Min = (af.priceM2Min !== undefined) ? af.priceM2Min : 0;
-    const pm2Max = (af.priceM2Max !== undefined) ? af.priceM2Max : 200;
-    if (pm2Min > 0 || pm2Max < 200) {
-      baseRows = baseRows.filter(r => {
-        const raw = colVal(r, 'PRICE_M2');
-        const n = parseFloat(String(raw).replace(/,/g, '.').replace(/[^0-9.\-]/g, ''));
-        if (isNaN(n) || n === 0) return false;
-        const inMillion = n > 5 ? n : n * 1000;
-        return inMillion >= pm2Min && inMillion <= pm2Max;
+
+    // ── CHIPS (multi-select) ──────────────────────────────────────────────────
+    if (def.type === 'chips') {
+      const distMap = getDistVals(def.key);
+      if (distMap.size === 0 || (distMap.size === 1 && distMap.has('(Trống)'))) return;
+
+      const cur = sf[def.key];
+      const selected = (cur && cur.type === 'chips') ? cur.selected : new Set();
+
+      const sorted = [...distMap.entries()]
+        .filter(([v]) => v !== '(Trống)')
+        .sort((a, b) => b[1] - a[1]); // sort by count desc
+
+      const sec = document.createElement('div');
+      sec.className = 'sf-section';
+      sec.innerHTML = `<div class="sf-label"><span class="sf-label-icon">${def.icon}</span>${def.label}</div>
+        <div class="sf-chips" id="sfChips_${def.key}"></div>`;
+      body.appendChild(sec);
+
+      const chipsEl = sec.querySelector('.sf-chips');
+      sorted.forEach(([val, cnt]) => {
+        const chip = document.createElement('button');
+        chip.className = 'sf-chip' + (selected.has(val) ? ' active' : '');
+        chip.type = 'button';
+        chip.innerHTML = `${val} <span class="sf-chip-count">(${cnt})</span>`;
+        chip.addEventListener('click', () => {
+          chip.classList.toggle('active');
+          const curSel = (sf[def.key] && sf[def.key].type === 'chips') ? sf[def.key].selected : new Set();
+          if (chip.classList.contains('active')) curSel.add(val); else curSel.delete(val);
+          sf[def.key] = { type: 'chips', selected: curSel };
+        });
+        chipsEl.appendChild(chip);
       });
+      sf[def.key] = { type: 'chips', selected };
     }
+
+    // ── TEXT search ───────────────────────────────────────────────────────────
+    if (def.type === 'text') {
+      const hasData = rows.some(r => colVal(r, def.key));
+      if (!hasData) return;
+
+      const cur = sf[def.key];
+      const curVal = (cur && cur.type === 'text') ? cur.value : '';
+
+      const sec = document.createElement('div');
+      sec.className = 'sf-section';
+      sec.innerHTML = `<div class="sf-label"><span class="sf-label-icon">${def.icon}</span>${def.label}</div>
+        <div class="sf-search-wrap">
+          <span class="sf-search-icon">🔍</span>
+          <input type="text" class="sf-search-input" id="sfText_${def.key}"
+            placeholder="${def.placeholder || 'Tìm kiếm…'}" value="${curVal}" autocomplete="off">
+        </div>`;
+      body.appendChild(sec);
+
+      sf[def.key] = { type: 'text', value: curVal };
+      const inp = sec.querySelector('input');
+      inp.addEventListener('input', () => { sf[def.key] = { type: 'text', value: inp.value }; });
+    }
+
+    // ── DATE range ────────────────────────────────────────────────────────────
+    if (def.type === 'date') {
+      const hasData = rows.some(r => colVal(r, def.key));
+      if (!hasData) return;
+
+      const cur = sf[def.key];
+      const curFrom = (cur && cur.type === 'date') ? cur.from : '';
+      const curTo   = (cur && cur.type === 'date') ? cur.to   : '';
+
+      const sec = document.createElement('div');
+      sec.className = 'sf-section';
+      sec.innerHTML = `<div class="sf-label"><span class="sf-label-icon">${def.icon}</span>${def.label}</div>
+        <div class="sf-date-row">
+          <input type="date" class="sf-date-input" id="sfDateFrom_${def.key}" value="${curFrom}" title="Từ ngày">
+          <input type="date" class="sf-date-input" id="sfDateTo_${def.key}"   value="${curTo}"   title="Đến ngày">
+        </div>`;
+      body.appendChild(sec);
+
+      sf[def.key] = { type: 'date', from: curFrom, to: curTo };
+      sec.querySelector('#sfDateFrom_' + def.key).addEventListener('change', e => { sf[def.key].from = e.target.value; });
+      sec.querySelector('#sfDateTo_'   + def.key).addEventListener('change', e => { sf[def.key].to   = e.target.value; });
+    }
+  });
+
+  // If no sections were rendered (non-BDS or empty), show placeholder
+  if (!body.children.length) {
+    body.innerHTML = `<div style="text-align:center;padding:var(--space-8);color:var(--text-muted)">
+      <div style="font-size:2rem;margin-bottom:var(--space-3)">🔍</div>
+      <p>Không có bộ lọc nào khả dụng</p></div>`;
   }
 
-  // Collect unique values
-  const valCounts = new Map(); // value → count
-  baseRows.forEach(row => {
-    let val = '';
-    if (col.knownKey) {
-      val = colVal(row, col.knownKey);
-    } else if (col.headerName) {
-      val = row[col.headerName];
-      if (val === undefined) {
-        const lk = col.headerName.toLowerCase().trim();
-        const ak = Object.keys(row).find(k => k.toLowerCase().trim() === lk);
-        if (ak) val = row[ak];
-      }
-      val = val || '';
-    }
-    val = String(val).trim();
-    if (val === '') val = '(Trống)';
-    valCounts.set(val, (valCounts.get(val) || 0) + 1);
-  });
-
-  // Sort values alphabetically, but put "(Trống)" last
-  const sortedValues = [...valCounts.keys()].sort((a, b) => {
-    if (a === '(Trống)') return 1;
-    if (b === '(Trống)') return -1;
-    return a.localeCompare(b, 'vi');
-  });
-
-  // Current filter state for this column
-  const currentFilter = State.columnFilters[col.id];
-  const isAllSelected = !currentFilter; // If no filter → all selected
-
-  // Build dropdown HTML
-  const dropdown = document.createElement('div');
-  dropdown.id = 'colFilterDropdown';
-  dropdown.innerHTML = `
-    <div class="col-filter-header">
-      <span>🔽 Lọc: ${col.label}</span>
-      <button class="col-filter-close" id="colFilterClose">✕</button>
-    </div>
-    <div class="col-filter-search-wrap">
-      <input type="text" class="col-filter-search" id="colFilterSearch" placeholder="Tìm giá trị…" autocomplete="off">
-    </div>
-    <div class="col-filter-actions">
-      <button class="col-filter-action-btn" id="colFilterSelectAll">✅ Chọn tất cả</button>
-      <button class="col-filter-action-btn" id="colFilterSelectNone">☐ Bỏ hết</button>
-    </div>
-    <div class="col-filter-list" id="colFilterList">
-      ${sortedValues.map(val => {
-        const checked = isAllSelected || (currentFilter && currentFilter.has(val));
-        const count = valCounts.get(val);
-        const escaped = val.replace(/"/g, '&quot;').replace(/</g, '&lt;');
-        return `<label class="col-filter-item" data-val="${escaped}" data-search="${val.toLowerCase()}">
-          <input type="checkbox" value="${escaped}" ${checked ? 'checked' : ''}>
-          <span class="col-filter-val">${escaped}</span>
-          <span class="col-filter-count">${count}</span>
-        </label>`;
-      }).join('')}
-    </div>
-    <div class="col-filter-footer">
-      <button class="btn btn-ghost btn-sm" id="colFilterClear">Xóa bộ lọc</button>
-      <button class="btn btn-primary btn-sm" id="colFilterApply">Áp dụng</button>
-    </div>
-  `;
-  document.body.appendChild(dropdown);
-
-  // Position below the trigger button
-  const rect = triggerBtn.getBoundingClientRect();
-  const dropW = 260;
-  let left = rect.left;
-  // Clamp to viewport
-  if (left + dropW > window.innerWidth - 8) left = window.innerWidth - dropW - 8;
-  if (left < 8) left = 8;
-  dropdown.style.top = (rect.bottom + 4) + 'px';
-  dropdown.style.left = left + 'px';
-
-  // Search filter
-  const searchInput = dropdown.querySelector('#colFilterSearch');
-  searchInput.addEventListener('input', () => {
-    const q = searchInput.value.toLowerCase().trim();
-    dropdown.querySelectorAll('.col-filter-item').forEach(item => {
-      const match = item.dataset.search.includes(q);
-      item.style.display = match ? '' : 'none';
-    });
-  });
-
-  // Select all / none
-  dropdown.querySelector('#colFilterSelectAll').addEventListener('click', () => {
-    dropdown.querySelectorAll('.col-filter-item input[type=checkbox]').forEach(cb => {
-      if (cb.closest('.col-filter-item').style.display !== 'none') cb.checked = true;
-    });
-  });
-  dropdown.querySelector('#colFilterSelectNone').addEventListener('click', () => {
-    dropdown.querySelectorAll('.col-filter-item input[type=checkbox]').forEach(cb => {
-      if (cb.closest('.col-filter-item').style.display !== 'none') cb.checked = false;
-    });
-  });
-
-  // Apply
-  dropdown.querySelector('#colFilterApply').addEventListener('click', () => {
-    const checkedVals = new Set();
-    dropdown.querySelectorAll('.col-filter-item input[type=checkbox]:checked').forEach(cb => {
-      checkedVals.add(cb.value);
-    });
-
-    // If all values are checked → remove filter (= no filter)
-    if (checkedVals.size >= sortedValues.length) {
-      delete State.columnFilters[col.id];
-    } else if (checkedVals.size === 0) {
-      // Nothing selected → filter everything out (empty set)
-      State.columnFilters[col.id] = new Set(['__IMPOSSIBLE_VALUE__']);
-    } else {
-      State.columnFilters[col.id] = checkedVals;
-    }
-
-    dropdown.remove();
-    applyFiltersAndSort();
-    renderList();
-  });
-
-  // Clear filter for this column
-  dropdown.querySelector('#colFilterClear').addEventListener('click', () => {
-    delete State.columnFilters[col.id];
-    dropdown.remove();
-    applyFiltersAndSort();
-    renderList();
-  });
-
-  // Close
-  dropdown.querySelector('#colFilterClose').addEventListener('click', () => dropdown.remove());
-
-  // Close on outside click
-  setTimeout(() => {
-    document.addEventListener('mousedown', function outsideClick(e) {
-      if (!dropdown.contains(e.target) && !triggerBtn.contains(e.target)) {
-        dropdown.remove();
-        document.removeEventListener('mousedown', outsideClick);
-      }
-    });
-  }, 50);
-
-  // Focus search
-  setTimeout(() => searchInput.focus(), 100);
+  _updateFilterBtnBadge();
+  modal.classList.remove('hidden');
 }
+
+
+
+
 
 // ── V2: Delete column with custom confirm ─────────
 let _v2PendingDeleteId = null;
@@ -1695,142 +1705,36 @@ function debounce(fn, ms) {
 
 // ─── Event Listeners ──────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  // (View toggle removed — chỉ dùng V2 table)
-
-  // Advanced Filter Modal Logic
-  State.advancedFilter = { type: 'all', priceMin: 1, priceMax: 20, status: 'all' };
-
-  const btnAdv    = document.getElementById('btnAdvancedFilter');
-  const advModal  = document.getElementById('advancedFilterModal');
-  const typeSel   = document.getElementById('filterType');
-  const statusSel = document.getElementById('filterStatus');
-
-  // ─ Price Slider helpers ─
-  const sliderMin    = document.getElementById('filterPriceMin');
-  const sliderMax    = document.getElementById('filterPriceMax');
-  const labelMin     = document.getElementById('priceMinLabel');
-  const labelMax     = document.getElementById('priceMaxLabel');
-  const sliderRange  = document.getElementById('priceSliderRange');
-
-  // ─ Price/m² Slider helpers ─
-  const sliderM2Min   = document.getElementById('filterPriceM2Min');
-  const sliderM2Max   = document.getElementById('filterPriceM2Max');
-  const labelM2Min    = document.getElementById('priceM2MinLabel');
-  const labelM2Max    = document.getElementById('priceM2MaxLabel');
-  const sliderM2Range = document.getElementById('priceM2SliderRange');
-
-  function _updateSliderUI() {
-    const min = parseFloat(sliderMin.value);
-    const max = parseFloat(sliderMax.value);
-    const total = parseFloat(sliderMin.max) - parseFloat(sliderMin.min);
-    const leftPct  = ((min - parseFloat(sliderMin.min)) / total) * 100;
-    const rightPct = ((parseFloat(sliderMax.max) - max)  / total) * 100;
-    if (sliderRange) {
-      sliderRange.style.left  = leftPct  + '%';
-      sliderRange.style.right = rightPct + '%';
-    }
-    const fmt = v => (v % 1 === 0 ? v : v.toFixed(1)) + ' tỷ';
-    if (labelMin) labelMin.textContent = fmt(min);
-    if (labelMax) labelMax.textContent = max >= 20 ? '20+ tỷ' : fmt(max);
-  }
-
-  function _updateM2SliderUI() {
-    const min = parseFloat(sliderM2Min.value);
-    const max = parseFloat(sliderM2Max.value);
-    const total = parseFloat(sliderM2Min.max) - parseFloat(sliderM2Min.min);
-    const leftPct  = ((min - parseFloat(sliderM2Min.min)) / total) * 100;
-    const rightPct = ((parseFloat(sliderM2Max.max) - max)  / total) * 100;
-    if (sliderM2Range) {
-      sliderM2Range.style.left  = leftPct  + '%';
-      sliderM2Range.style.right = rightPct + '%';
-    }
-    const fmtM2 = v => v + ' tr/m²';
-    if (labelM2Min) labelM2Min.textContent = fmtM2(min);
-    if (labelM2Max) labelM2Max.textContent = max >= 200 ? '200+ tr/m²' : fmtM2(max);
-  }
-
-  if (sliderMin && sliderMax) {
-    sliderMin.addEventListener('input', () => {
-      if (parseFloat(sliderMin.value) > parseFloat(sliderMax.value) - 0.5)
-        sliderMin.value = parseFloat(sliderMax.value) - 0.5;
-      _updateSliderUI();
-    });
-    sliderMax.addEventListener('input', () => {
-      if (parseFloat(sliderMax.value) < parseFloat(sliderMin.value) + 0.5)
-        sliderMax.value = parseFloat(sliderMin.value) + 0.5;
-      _updateSliderUI();
-    });
-    _updateSliderUI(); // init
-  }
-
-  if (sliderM2Min && sliderM2Max) {
-    sliderM2Min.addEventListener('input', () => {
-      if (parseFloat(sliderM2Min.value) > parseFloat(sliderM2Max.value) - 5)
-        sliderM2Min.value = parseFloat(sliderM2Max.value) - 5;
-      _updateM2SliderUI();
-    });
-    sliderM2Max.addEventListener('input', () => {
-      if (parseFloat(sliderM2Max.value) < parseFloat(sliderM2Min.value) + 5)
-        sliderM2Max.value = parseFloat(sliderM2Min.value) + 5;
-      _updateM2SliderUI();
-    });
-    _updateM2SliderUI(); // init
-  }
+  // ── Smart Filter Panel ──────────────────────────────────────────────────────
+  const btnAdv   = document.getElementById('btnAdvancedFilter');
+  const advModal = document.getElementById('advancedFilterModal');
 
   btnAdv?.addEventListener('click', () => {
-    // Sync current state to UI
-    typeSel.value = State.advancedFilter.type;
-    statusSel.value = State.advancedFilter.status;
-    if (sliderMin) sliderMin.value = State.advancedFilter.priceMin ?? 1;
-    if (sliderMax) sliderMax.value = State.advancedFilter.priceMax ?? 20;
-    _updateSliderUI();
-    if (sliderM2Min) sliderM2Min.value = State.advancedFilter.priceM2Min ?? 0;
-    if (sliderM2Max) sliderM2Max.value = State.advancedFilter.priceM2Max ?? 200;
-    _updateM2SliderUI();
-    advModal.classList.remove('hidden');
+    openSmartFilterPanel();
   });
 
   document.getElementById('btnCloseFilter')?.addEventListener('click', () => {
-    advModal.classList.add('hidden');
+    advModal?.classList.add('hidden');
   });
-  
+
+  advModal?.addEventListener('click', (e) => {
+    if (e.target === advModal) advModal.classList.add('hidden');
+  });
+
   document.getElementById('btnClearFilter')?.addEventListener('click', () => {
-    typeSel.value = 'all';
-    statusSel.value = 'all';
-    if (sliderMin)   sliderMin.value   = 1;
-    if (sliderMax)   sliderMax.value   = 20;
-    if (sliderM2Min) sliderM2Min.value = 0;
-    if (sliderM2Max) sliderM2Max.value = 200;
-    _updateSliderUI();
-    _updateM2SliderUI();
+    State.smartFilters = {};
+    // Re-render the panel so sliders/chips reset visually
+    openSmartFilterPanel();
   });
 
   document.getElementById('btnApplyFilter')?.addEventListener('click', () => {
-    const pMin   = parseFloat(sliderMin?.value   ?? 1);
-    const pMax   = parseFloat(sliderMax?.value   ?? 20);
-    const pm2Min = parseFloat(sliderM2Min?.value ?? 0);
-    const pm2Max = parseFloat(sliderM2Max?.value ?? 200);
-    State.advancedFilter = {
-      type:      typeSel.value,
-      priceMin:  pMin,
-      priceMax:  pMax,
-      priceM2Min: pm2Min,
-      priceM2Max: pm2Max,
-      status:    statusSel.value
-    };
-    advModal.classList.add('hidden');
+    advModal?.classList.add('hidden');
     applyFiltersAndSort();
     renderList();
-    
-    // Highlight button if active filter differs from default
-    const priceActive = pMin > 1 || pMax < 20;
-    const m2Active    = pm2Min > 0 || pm2Max < 200;
-    if (State.advancedFilter.type !== 'all' || priceActive || m2Active || State.advancedFilter.status !== 'all') {
-      btnAdv.classList.add('badge-accent');
-    } else {
-      btnAdv.classList.remove('badge-accent');
-    }
+    _updateFilterBtnBadge();
   });
+
+
 
   // FAB – route to BĐS form or generic form based on current workspace
   document.getElementById('fabAdd')?.addEventListener('click', () => {

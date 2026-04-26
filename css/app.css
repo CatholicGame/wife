@@ -1559,15 +1559,325 @@ th:hover .v2-col-delete {
 }
 
 /* ============================================================
+   Smart Filter Panel
+   ============================================================ */
+
+/* Modal layout */
+.smart-filter-modal {
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  width: 100%;
+  max-width: 480px;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+@media (min-width: 640px) {
+  .smart-filter-modal { border-radius: var(--radius-xl); max-height: 82vh; }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.smart-filter-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.smart-filter-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* Active filters badge on modal title */
+.smart-filter-active-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: #0d1117;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* ── Filter Section ─────────────────────────────────────── */
+.sf-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sf-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.sf-label-icon { font-size: 0.95rem; }
+
+/* ── Toggle Chips (categorical) ─────────────────────────── */
+.sf-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s var(--ease);
+  white-space: nowrap;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sf-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.sf-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0d1117;
+  font-weight: 700;
+}
+
+.sf-chip-count {
+  font-size: 0.68rem;
+  opacity: 0.75;
+}
+.sf-chip.active .sf-chip-count { opacity: 0.8; }
+
+/* ── Range Slider (numeric) ─────────────────────────────── */
+.sf-slider-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sf-slider-badges {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.sf-slider-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: var(--accent-bg);
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+  transition: background 0.15s;
+}
+
+.sf-slider-sep {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  flex: 1;
+  text-align: center;
+}
+
+.sf-slider-track-wrap {
+  position: relative;
+  height: 36px;
+  display: flex;
+  align-items: center;
+}
+
+.sf-slider-track {
+  position: absolute;
+  left: 0; right: 0;
+  height: 5px;
+  background: var(--border);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.sf-slider-range {
+  position: absolute;
+  top: 0; bottom: 0;
+  background: var(--accent);
+  border-radius: var(--radius-full);
+}
+
+.sf-slider-thumb {
+  position: absolute;
+  width: 100%;
+  left: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 5px;
+  background: transparent;
+  outline: none;
+  pointer-events: none;
+}
+
+.sf-slider-thumb::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--bg-base);
+  box-shadow: 0 2px 8px rgba(0, 212, 170, 0.4);
+  cursor: pointer;
+  pointer-events: all;
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+.sf-slider-thumb::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 0 6px var(--accent-glow);
+  transform: scale(1.1);
+}
+.sf-slider-thumb::-moz-range-thumb {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--bg-base);
+  box-shadow: 0 2px 8px rgba(0, 212, 170, 0.4);
+  cursor: pointer;
+  pointer-events: all;
+}
+
+.sf-slider-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+.sf-slider-scale span {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+/* ── Text Search ─────────────────────────────────────────── */
+.sf-search-wrap {
+  position: relative;
+}
+.sf-search-icon {
+  position: absolute;
+  left: 12px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  pointer-events: none;
+}
+.sf-search-input {
+  width: 100%;
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px 12px 8px 34px;
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  outline: none;
+  transition: border-color var(--fast);
+}
+.sf-search-input:focus { border-color: var(--accent); }
+.sf-search-input::placeholder { color: var(--text-muted); }
+
+/* ── Date Range ─────────────────────────────────────────── */
+.sf-date-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+.sf-date-input {
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  outline: none;
+  transition: border-color var(--fast);
+  width: 100%;
+}
+.sf-date-input:focus { border-color: var(--accent); }
+
+/* ── Active filter pill on "Lọc" button ─────────────────── */
+.filter-active-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-full);
+  background: #0d1117;
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 800;
+  margin-left: 4px;
+}
+
+/* Light theme overrides */
+[data-theme="light"] .sf-chip {
+  background: #f0f5fa;
+  border-color: rgba(0,0,0,0.1);
+  color: var(--text-secondary);
+}
+[data-theme="light"] .sf-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+[data-theme="light"] .sf-slider-badge {
+  background: rgba(0,168,133,0.08);
+}
+[data-theme="light"] .sf-search-input,
+[data-theme="light"] .sf-date-input {
+  background: #f8fafc;
+  border-color: rgba(0,0,0,0.1);
+}
+
+/* ============================================================
    Light / Day Theme
    ============================================================ */
 
+
 /* ── Theme Toggle Button ──────────────────────────────────── */
 .theme-toggle-btn {
-  position: absolute;
-  right: var(--space-4);
-  top: 50%;
-  transform: translateY(-50%);
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-full);
@@ -1575,7 +1885,7 @@ th:hover .v2-col-delete {
   font-size: 1.05rem;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
-  transition: all var(--fast);
+  transition: background var(--fast), border-color var(--fast), box-shadow var(--fast), transform var(--fast);
   color: var(--text-primary);
   flex-shrink: 0;
 }
@@ -1583,7 +1893,15 @@ th:hover .v2-col-delete {
   background: var(--bg-card-hover);
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-glow);
-  transform: translateY(-50%) scale(1.08);
+  transform: scale(1.08);
+}
+[data-theme="light"] .theme-toggle-btn {
+  background: #f0f5fa;
+  border-color: rgba(0,0,0,0.1);
+}
+[data-theme="light"] .theme-toggle-btn:hover {
+  background: rgba(0,168,133,0.1);
+  border-color: var(--accent);
 }
 
 /* ── Light Theme Variable Overrides ──────────────────────── */
@@ -1781,6 +2099,32 @@ th:hover .v2-col-delete {
 html {
   transition: background-color 0.3s var(--ease), color 0.3s var(--ease);
 }
-body, .top-nav, .bottom-nav, .card, .modal-sheet, .toast, #colSettingsPanel, .ai-panel {
+body, .top-nav, .bottom-nav, .card, .modal-sheet, .toast, #colSettingsPanel, .ai-panel,
+.theme-toggle-btn, .form-control, .form-section, .btn-secondary, .search-bar,
+.bottom-actions, .gform-actions, .search-section {
   transition: background-color 0.3s var(--ease), border-color 0.3s var(--ease), box-shadow 0.3s var(--ease);
+}
+
+/* ── Light theme: hardcoded-background fixes ──────────────── */
+[data-theme="light"] .search-section {
+  background: rgba(255,255,255,0.97) !important;
+}
+[data-theme="light"] .bottom-actions {
+  background: rgba(255,255,255,0.97) !important;
+}
+[data-theme="light"] .gform-actions {
+  background: rgba(255,255,255,0.97) !important;
+}
+[data-theme="light"] .ws-item:hover {
+  background: rgba(0,0,0,0.04);
+}
+[data-theme="light"] .ws-panel-footer {
+  border-top-color: rgba(0,0,0,0.08);
+}
+[data-theme="light"] .ws-nav-btn {
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.1);
+}
+[data-theme="light"] .ws-nav-btn:hover {
+  background: rgba(0,0,0,0.08);
 }
