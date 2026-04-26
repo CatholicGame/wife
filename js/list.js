@@ -232,26 +232,38 @@ function applyFiltersAndSort() {
   const sf = State.smartFilters || {};
   for (const [key, rule] of Object.entries(sf)) {
     if (!rule || rule.type === 'none') continue;
+
+    // Range: skip entirely if at full default (no slider moved)
+    if (rule.type === 'range') {
+      const isDefault = (rule.dataMin !== undefined && rule.dataMax !== undefined)
+        ? rule.min <= rule.dataMin && rule.max >= rule.dataMax
+        : false;
+      if (isDefault) continue;
+    }
+    // Select: skip if 'all'
+    if (rule.type === 'select' && (!rule.value || rule.value === 'all')) continue;
+    // Text: skip if empty
+    if (rule.type === 'text' && !rule.value) continue;
+    // Date: skip if no dates
+    if (rule.type === 'date' && !rule.from && !rule.to) continue;
+
     rows = rows.filter(row => {
       const rawVal = key.startsWith('_h:') ? (row[key.slice(3)] || '') : colVal(row, key);
       if (rule.type === 'range') {
         const n = parseFloat(String(rawVal).replace(/,/g, '.').replace(/[^0-9.\-]/g, ''));
-        if (isNaN(n)) return rule.includeEmpty !== false ? false : true;
-        // PRICE_M2: normalize to triệu
+        if (isNaN(n) || n === 0) return false;
+        // PRICE_M2: normalize tỷ → triệu nếu giá trị nhỏ
         const val = (key === 'PRICE_M2' && n <= 5 && n > 0) ? n * 1000 : n;
         return val >= rule.min && val <= rule.max;
       }
       if (rule.type === 'select') {
-        if (!rule.value || rule.value === 'all') return true;
         const v = String(rawVal).trim();
         return v === rule.value;
       }
       if (rule.type === 'text') {
-        if (!rule.value) return true;
         return String(rawVal).toLowerCase().includes(rule.value.toLowerCase());
       }
       if (rule.type === 'date') {
-        if (!rule.from && !rule.to) return true;
         const dStr = String(rawVal).slice(0, 10);
         if (rule.from && dStr < rule.from) return false;
         if (rule.to   && dStr > rule.to)   return false;
@@ -884,6 +896,8 @@ function renderV2Table() {
         delBtn.classList.remove('hidden', 'btn-ghost');
         delBtn.classList.add('btn-danger');
         delBtn.dataset.row = rowNum;
+        delBtn.disabled = false;
+        delBtn.textContent = '🗑️ Xóa dòng';
         if (copyBtn) {
           copyBtn.classList.remove('hidden');
           copyBtn.dataset.row = rowNum;
@@ -891,6 +905,8 @@ function renderV2Table() {
       } else {
         delBtn.classList.add('hidden');
         delBtn.dataset.row = '';
+        delBtn.disabled = false;
+        delBtn.textContent = '🗑️ Xóa dòng';
         if (copyBtn) { copyBtn.classList.add('hidden'); copyBtn.dataset.row = ''; }
       }
     }
@@ -927,15 +943,16 @@ function renderV2Table() {
       if (!confirm('Bạn có chắc chắn muốn xóa BĐS này khỏi bảng? Dữ liệu bị xóa không thể khôi phục!')) return;
       const spreadsheetId = localStorage.getItem(APP_CONFIG.STORAGE.SPREADSHEET_ID);
       const sheetName = localStorage.getItem(APP_CONFIG.STORAGE.SHEET_NAME);
+      fresh.disabled = true;
+      fresh.textContent = '⏳ Đang xóa…';
       try {
-        fresh.disabled = true;
-        fresh.textContent = '⏳ Đang xóa…';
         const sheetIdNum = await SheetsAPI.getSheetId(spreadsheetId, sheetName);
         if (sheetIdNum === undefined) throw new Error('Không tìm thấy ID Worksheet');
         await SheetsAPI.deleteRow(spreadsheetId, sheetName, rowId, sheetIdNum);
         showToast('Đã xóa dòng thành công ✓', 'success');
         SheetsAPI.invalidateCache();
-        _selectedRowNum = null;
+        // Ẩn & reset button ngay trước khi re-render để cloneNode không copy trạng thái cũ
+        _setSelectedRow(null);
         await loadData(true);
       } catch (err) {
         showToast('Lỗi xóa: ' + err.message, 'error');
