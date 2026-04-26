@@ -241,10 +241,10 @@ function applyFiltersAndSort() {
         const val = (key === 'PRICE_M2' && n <= 5 && n > 0) ? n * 1000 : n;
         return val >= rule.min && val <= rule.max;
       }
-      if (rule.type === 'chips') {
-        if (!rule.selected || rule.selected.size === 0) return true;
-        const v = String(rawVal).trim() || '(Trống)';
-        return rule.selected.has(v);
+      if (rule.type === 'select') {
+        if (!rule.value || rule.value === 'all') return true;
+        const v = String(rawVal).trim();
+        return v === rule.value;
       }
       if (rule.type === 'text') {
         if (!rule.value) return true;
@@ -1014,7 +1014,7 @@ function _updateFilterBtnBadge() {
   const count = Object.values(State.smartFilters || {}).filter(r => {
     if (!r || r.type === 'none') return false;
     if (r.type === 'range')  return r.min !== r.dataMin || r.max !== r.dataMax;
-    if (r.type === 'chips')  return r.selected && r.selected.size > 0;
+    if (r.type === 'select') return !!r.value && r.value !== 'all';
     if (r.type === 'text')   return !!r.value;
     if (r.type === 'date')   return !!(r.from || r.to);
     return false;
@@ -1046,20 +1046,20 @@ function openSmartFilterPanel() {
   const isBDS = WorkspaceManager.isBDSMode(State.colMap);
 
   // ── Column definitions with filter type ─────────────────────────────────────
-  // type: 'range' | 'chips' | 'text' | 'date' | 'none'
+  // type: 'range' | 'select' | 'text' | 'date'
   const FILTER_DEFS = isBDS ? [
-    { key: 'TYPE',     label: 'Loại BĐS',         icon: '🏠', type: 'chips' },
-    { key: 'STATUS',   label: 'Tình trạng',        icon: '📌', type: 'chips' },
-    { key: 'DISTRICT', label: 'Quận / Huyện',     icon: '📍', type: 'chips' },
-    { key: 'PRICE',    label: 'Giá (tỷ đồng)',    icon: '💰', type: 'range', unit: 'tỷ',    step: 0.5, decimals: 1, isMax: v => v >= 20, maxSuffix: '20+ tỷ' },
-    { key: 'PRICE_M2', label: 'Giá / m²',         icon: '📐', type: 'range', unit: 'tr/m²', step: 5,   decimals: 0, isMax: v => v >= 200, maxSuffix: '200+ tr/m²' },
-    { key: 'AREA',     label: 'Diện tích (m²)',   icon: '📏', type: 'range', unit: 'm²',    step: 5,   decimals: 0 },
-    { key: 'SCORE',    label: 'Điểm đánh giá',    icon: '⭐', type: 'range', unit: '',       step: 0.5, decimals: 1 },
-    { key: 'FLOORS',   label: 'Số tầng',           icon: '🏢', type: 'range', unit: 'tầng',  step: 1,   decimals: 0 },
-    { key: 'DIR',      label: 'Hướng nhà',         icon: '🧭', type: 'chips' },
-    { key: 'LEGAL',    label: 'Pháp lý',           icon: '📋', type: 'chips' },
-    { key: 'OWNER',    label: 'Tìm theo đầu chủ', icon: '👤', type: 'text',  placeholder: 'Tên đầu chủ…' },
-    { key: 'DATE',     label: 'Ngày khảo sát',    icon: '📅', type: 'date' },
+    { key: 'TYPE',     label: 'Loại BĐS',         icon: '🏠', type: 'select', allLabel: 'Tất cả loại' },
+    { key: 'STATUS',   label: 'Tình trạng',        icon: '📌', type: 'select', allLabel: 'Tất cả trạng thái' },
+    { key: 'DISTRICT', label: 'Quận / Huyện',      icon: '📍', type: 'select', allLabel: 'Tất cả quận/huyện' },
+    { key: 'PRICE',    label: 'Giá (tỷ đồng)',     icon: '💰', type: 'range',  unit: 'tỷ',    step: 0.5, decimals: 1 },
+    { key: 'PRICE_M2', label: 'Giá / m²',          icon: '📐', type: 'range',  unit: 'tr/m²', step: 5,   decimals: 0 },
+    { key: 'AREA',     label: 'Diện tích (m²)',    icon: '📏', type: 'range',  unit: 'm²',    step: 5,   decimals: 0 },
+    { key: 'SCORE',    label: 'Điểm đánh giá',     icon: '⭐', type: 'range',  unit: '',       step: 0.5, decimals: 1 },
+    { key: 'FLOORS',   label: 'Số tầng',            icon: '🏢', type: 'range',  unit: 'tầng',  step: 1,   decimals: 0 },
+    { key: 'DIR',      label: 'Hướng nhà',          icon: '🧭', type: 'select', allLabel: 'Tất cả hướng' },
+    { key: 'LEGAL',    label: 'Pháp lý',            icon: '📋', type: 'select', allLabel: 'Tất cả pháp lý' },
+    { key: 'OWNER',    label: 'Tìm theo đầu chủ',  icon: '👤', type: 'text',   placeholder: 'Tên đầu chủ…' },
+    { key: 'DATE',     label: 'Ngày khảo sát',     icon: '📅', type: 'date' },
   ] : [];
 
   // ── Helper: get numeric values for a known key ────────────────────────────
@@ -1178,39 +1178,41 @@ function openSmartFilterPanel() {
       });
     }
 
-    // ── CHIPS (multi-select) ──────────────────────────────────────────────────
-    if (def.type === 'chips') {
+    // ── SELECT dropdown (categorical) ─────────────────────────────────────────
+    if (def.type === 'select') {
       const distMap = getDistVals(def.key);
-      if (distMap.size === 0 || (distMap.size === 1 && distMap.has('(Trống)'))) return;
+      // Hide if no meaningful data
+      const realVals = [...distMap.keys()].filter(v => v !== '(Trống)');
+      if (realVals.length === 0) return;
+
+      // Sort alphabetically
+      realVals.sort((a, b) => a.localeCompare(b, 'vi'));
 
       const cur = sf[def.key];
-      const selected = (cur && cur.type === 'chips') ? cur.selected : new Set();
+      const curVal = (cur && cur.type === 'select') ? cur.value : 'all';
 
-      const sorted = [...distMap.entries()]
-        .filter(([v]) => v !== '(Trống)')
-        .sort((a, b) => b[1] - a[1]); // sort by count desc
+      const selectId = 'sfSel_' + def.key;
+      const optionsHtml = realVals.map(v => {
+        const cnt = distMap.get(v) || 0;
+        const sel = curVal === v ? 'selected' : '';
+        return `<option value="${v.replace(/"/g, '&quot;')}" ${sel}>${v} (${cnt})</option>`;
+      }).join('');
 
       const sec = document.createElement('div');
       sec.className = 'sf-section';
-      sec.innerHTML = `<div class="sf-label"><span class="sf-label-icon">${def.icon}</span>${def.label}</div>
-        <div class="sf-chips" id="sfChips_${def.key}"></div>`;
+      sec.innerHTML = `
+        <div class="sf-label"><span class="sf-label-icon">${def.icon}</span>${def.label}</div>
+        <select class="sf-select" id="${selectId}">
+          <option value="all" ${curVal === 'all' ? 'selected' : ''}>${def.allLabel || 'Tất cả'}</option>
+          ${optionsHtml}
+        </select>`;
       body.appendChild(sec);
 
-      const chipsEl = sec.querySelector('.sf-chips');
-      sorted.forEach(([val, cnt]) => {
-        const chip = document.createElement('button');
-        chip.className = 'sf-chip' + (selected.has(val) ? ' active' : '');
-        chip.type = 'button';
-        chip.innerHTML = `${val} <span class="sf-chip-count">(${cnt})</span>`;
-        chip.addEventListener('click', () => {
-          chip.classList.toggle('active');
-          const curSel = (sf[def.key] && sf[def.key].type === 'chips') ? sf[def.key].selected : new Set();
-          if (chip.classList.contains('active')) curSel.add(val); else curSel.delete(val);
-          sf[def.key] = { type: 'chips', selected: curSel };
-        });
-        chipsEl.appendChild(chip);
+      sf[def.key] = { type: 'select', value: curVal };
+      const sel = sec.querySelector('select');
+      sel.addEventListener('change', () => {
+        sf[def.key] = { type: 'select', value: sel.value };
       });
-      sf[def.key] = { type: 'chips', selected };
     }
 
     // ── TEXT search ───────────────────────────────────────────────────────────
