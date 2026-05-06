@@ -65,24 +65,80 @@ const State = {
   showSavedOnly: false, // toggle filter "Đã lưu"
 };
 
-// ─── Saved Manager (per-user localStorage) ─────────────────────────────────────
+// ─── Cloud Config (Sync across devices) ──────────────────────────────────────────
+const CloudConfig = (() => {
+  let state = {
+    myMapsCustomUrl: '',
+    saved: {} // { spreadsheetId: [rowId1, rowId2] }
+  };
+  let saveTimer = null;
+  let loaded = false;
+
+  async function load() {
+    if (loaded) return;
+    if (typeof DriveAPI !== 'undefined' && Auth.isSignedIn()) {
+      const data = await DriveAPI.loadAppConfig();
+      if (data && typeof data === 'object') {
+        state.myMapsCustomUrl = data.myMapsCustomUrl || '';
+        state.saved = data.saved || {};
+        loaded = true;
+      }
+    }
+  }
+
+  function queueSave() {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      if (typeof DriveAPI !== 'undefined' && Auth.isSignedIn()) {
+        await DriveAPI.saveAppConfig(state);
+      }
+    }, 2000); // debounce 2s
+  }
+
+  function getMyMapsUrl() { return state.myMapsCustomUrl || localStorage.getItem('bds_mymaps_custom_url') || ''; }
+  function setMyMapsUrl(url) { 
+    state.myMapsCustomUrl = url;
+    if (url) localStorage.setItem('bds_mymaps_custom_url', url);
+    else localStorage.removeItem('bds_mymaps_custom_url');
+    queueSave(); 
+  }
+
+  function getSavedForSheet(sheetId) {
+    // Migrate old local storage data if cloud data is empty
+    const info = typeof Auth !== 'undefined' ? Auth.getUserInfo() : null;
+    const oldKey = 'bds_saved_' + (info?.email || 'default');
+    if (!state.saved[sheetId]) {
+      try {
+        const raw = localStorage.getItem(oldKey);
+        if (raw) state.saved[sheetId] = JSON.parse(raw);
+        else state.saved[sheetId] = [];
+      } catch { state.saved[sheetId] = []; }
+    }
+    return new Set(state.saved[sheetId] || []);
+  }
+  
+  function toggleSavedForSheet(sheetId, rowId) {
+    const s = getSavedForSheet(sheetId);
+    if (s.has(rowId)) s.delete(rowId);
+    else s.add(rowId);
+    state.saved[sheetId] = [...s];
+    queueSave();
+    return s.has(rowId);
+  }
+
+  return { load, getMyMapsUrl, setMyMapsUrl, getSavedForSheet, toggleSavedForSheet };
+})();
+
+// ─── Saved Manager (Cloud-backed) ────────────────────────────────────────────────
 const SavedManager = {
-  _key() {
-    const info = (typeof Auth !== 'undefined') ? Auth.getUserInfo() : null;
-    return 'bds_saved_' + (info?.email || 'default');
+  _sheetId() {
+    return localStorage.getItem(APP_CONFIG.STORAGE.SPREADSHEET_ID) || 'default';
   },
   getAll() {
-    try {
-      const raw = localStorage.getItem(this._key());
-      return new Set(raw ? JSON.parse(raw) : []);
-    } catch { return new Set(); }
+    return CloudConfig.getSavedForSheet(this._sheetId());
   },
   toggle(rowId) {
-    const saved = this.getAll();
-    if (saved.has(rowId)) saved.delete(rowId);
-    else saved.add(rowId);
-    localStorage.setItem(this._key(), JSON.stringify([...saved]));
-    return saved.has(rowId);
+    return CloudConfig.toggleSavedForSheet(this._sheetId(), rowId);
   },
   has(rowId) { return this.getAll().has(rowId); },
   count()    { return this.getAll().size; },
@@ -352,7 +408,7 @@ async function exportToMyMaps() {
     document.getElementById('myMapsImportLink').style.display = '';
 
     const driveUrl        = webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
-    const savedCustomUrl  = localStorage.getItem('bds_mymaps_custom_url');
+    const savedCustomUrl  = CloudConfig.getMyMapsUrl();
     const myMapsImportUrl = savedCustomUrl || `https://www.google.com/maps/d/`;
     const directViewUrl   = `https://www.google.com/maps/d/viewer?mid=${fileId}`;
 
@@ -1755,7 +1811,11 @@ async function loadData(forceRefresh = false) {
   if (refreshIcon) refreshIcon.textContent = '⏳';
 
   try {
-    const { headers, rows } = await SheetsAPI.getCachedRows(spreadsheetId, sheetName, forceRefresh);
+    const [sheetsRes] = await Promise.all([
+      SheetsAPI.getCachedRows(spreadsheetId, sheetName, forceRefresh),
+      CloudConfig.load()
+    ]);
+    const { headers, rows } = sheetsRes;
     State.headers = headers;
     
     // Tự động dọn dẹp các cột custom đã bị xóa khỏi Google Sheet (khi sync)
@@ -2106,15 +2166,10 @@ document.addEventListener('DOMContentLoaded', () => {
   
   document.getElementById('btnSaveCustomMapUrl')?.addEventListener('click', () => {
     const val = document.getElementById('myMapsCustomUrl')?.value.trim();
-    if (val) {
-      localStorage.setItem('bds_mymaps_custom_url', val);
-      document.getElementById('myMapsImportLink').href = val;
-      showToast('Đã lưu link bản đồ!', 'success');
-    } else {
-      localStorage.removeItem('bds_mymaps_custom_url');
-      document.getElementById('myMapsImportLink').href = 'https://www.google.com/maps/d/';
-      showToast('Đã xóa link tùy chỉnh, khôi phục mặc định.', 'info');
-    }
+    CloudConfig.setMyMapsUrl(val || '');
+    document.getElementById('myMapsImportLink').href = val || 'https://www.google.com/maps/d/';
+    if (val) showToast('Đã lưu link bản đồ và đồng bộ!', 'success');
+    else showToast('Đã xóa link tùy chỉnh, khôi phục mặc định.', 'info');
   });
 
   document.getElementById('btnPickMyMap')?.addEventListener('click', async () => {
@@ -2125,9 +2180,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const input = document.getElementById('myMapsCustomUrl');
         if (input) input.value = mapUrl;
         
-        localStorage.setItem('bds_mymaps_custom_url', mapUrl);
+        CloudConfig.setMyMapsUrl(mapUrl);
         document.getElementById('myMapsImportLink').href = mapUrl;
-        showToast(`Đã chọn map: ${mapInfo.name}`, 'success');
+        showToast(`Đã chọn map: ${mapInfo.name} và đồng bộ`, 'success');
       }
     } catch (e) {
       showToast('Lỗi: ' + e.message, 'error');

@@ -332,6 +332,56 @@ const DriveAPI = (() => {
     });
   }
 
+  // ─── App Config (Cloud Sync) ──────────────────────────────────────────────────
+  async function loadAppConfig() {
+    try {
+      const rootId = await ensureRootFolder();
+      const hdrs = await authHeaders();
+      const q = encodeURIComponent(`name='bds_app_config.json' and '${rootId}' in parents and trashed=false`);
+      const sRes = await fetch(`${DRIVE_BASE}/files?q=${q}&fields=files(id)`, { headers: hdrs });
+      const sData = await sRes.json();
+      if (!sData.files || sData.files.length === 0) return {};
+      
+      const fileId = sData.files[0].id;
+      const r = await fetch(`${DRIVE_BASE}/files/${fileId}?alt=media`, { headers: hdrs });
+      if (!r.ok) return {};
+      return await r.json();
+    } catch {
+      return {};
+    }
+  }
+
+  async function saveAppConfig(jsonObj) {
+    try {
+      const rootId = await ensureRootFolder();
+      const hdrs = await authHeaders();
+      const q = encodeURIComponent(`name='bds_app_config.json' and '${rootId}' in parents and trashed=false`);
+      const sRes = await fetch(`${DRIVE_BASE}/files?q=${q}&fields=files(id)`, { headers: hdrs });
+      const sData = await sRes.json();
+      const existing = sData.files && sData.files.length > 0 ? sData.files[0] : null;
+      
+      const fileBlob = new Blob([JSON.stringify(jsonObj)], { type: 'application/json' });
+      
+      if (existing) {
+        await fetch(`${UPLOAD_BASE}/files/${existing.id}?uploadType=media`, {
+          method: 'PATCH',
+          headers: { Authorization: hdrs.Authorization, 'Content-Type': 'application/json' },
+          body: fileBlob
+        });
+      } else {
+        const meta = { name: 'bds_app_config.json', parents: [rootId], mimeType: 'application/json' };
+        const form = new FormData();
+        form.append('metadata', new Blob([JSON.stringify(meta)], { type: 'application/json' }));
+        form.append('file', fileBlob);
+        await fetch(`${UPLOAD_BASE}/files?uploadType=multipart`, {
+          method: 'POST',
+          headers: { Authorization: hdrs.Authorization },
+          body: form
+        });
+      }
+    } catch(e) { console.error('saveAppConfig err', e); }
+  }
+
   return {
     findOrCreateFolder,
     ensureRootFolder,
@@ -344,7 +394,9 @@ const DriveAPI = (() => {
     getThumbnailUrl,
     getDirectUrl,
     capturePhoto,
-    compressImage
+    compressImage,
+    loadAppConfig,
+    saveAppConfig
   };
 })();
 
