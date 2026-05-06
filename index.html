@@ -1356,15 +1356,41 @@ Xấu"></textarea>
           <div class="my-maps-title">🗺️ Xuất lên Google My Maps</div>
           <button class="my-maps-close" id="myMapsModalClose">✕</button>
         </div>
+        <div id="myMapsDashboard" style="padding: 16px;">
+          <!-- Nút mở map trực tiếp -->
+          <button id="btnOpenDirectly" class="btn btn-primary" style="width:100%; padding: 12px; font-size: 1rem; margin-bottom: 16px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <span style="font-size: 1.2rem;">🌍</span> Mở Bản Đồ Của Tôi
+          </button>
+          
+          <!-- Phần cấu hình Link -->
+          <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
+            <label style="font-size: 0.78rem; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; display: block;">🔗 Link bản đồ Google My Maps của bạn</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="myMapsCustomUrl" class="form-control" style="flex: 1; font-size: 0.75rem; padding: 6px 10px;" placeholder="VD: https://www.google.com/maps/d/edit?mid=...">
+              <button id="btnPickMyMap" class="btn btn-secondary btn-sm" style="white-space: nowrap; padding: 4px 10px;" title="Chọn từ Drive">📂 Chọn</button>
+              <button id="btnSaveCustomMapUrl" class="btn btn-primary btn-sm" style="white-space: nowrap; padding: 4px 10px;">Lưu</button>
+            </div>
+          </div>
+          
+          <!-- Phần Đồng Bộ KML -->
+          <div>
+            <h4 style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-primary);">🔄 Đồng bộ dữ liệu mới</h4>
+            <p style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.4;">Xuất danh sách các BĐS đã thả tim thành file KML và cập nhật lên Google Drive để bạn có thể import vào My Maps.</p>
+            <button id="btnSyncKML" class="btn btn-secondary" style="width: 100%; padding: 8px; font-size: 0.85rem;">
+              Tạo & Upload KML lên Drive
+            </button>
+          </div>
+        </div>
+
         <!-- Progress -->
-        <div id="myMapsProgress" class="my-maps-progress" style="display:none">
+        <div id="myMapsProgress" class="my-maps-progress" style="display:none; padding: 16px;">
           <span class="my-maps-spinner">⏳</span>
           <p class="my-maps-progress-text" id="myMapsProgressText">Đang xử lý…</p>
         </div>
         <!-- Result -->
-        <div id="myMapsResult" class="my-maps-result" style="display:none">
-          <div class="my-maps-result-text" id="myMapsResultText"></div>
-          <div class="my-maps-steps">
+        <div id="myMapsResult" class="my-maps-result" style="display:none; padding: 16px;">
+          <div class="my-maps-result-text" id="myMapsResultText" style="margin-bottom: 16px;"></div>
+          <div class="my-maps-steps" style="margin-bottom: 16px;">
             <div class="my-maps-steps-title">📋 Hướng dẫn xem trong Google Maps</div>
             <div class="my-maps-step">
               <div class="my-maps-step-num">1</div>
@@ -1379,20 +1405,10 @@ Xấu"></textarea>
               <div>Mở <b>Google Maps app</b> → ☰ Menu → <b>"Your places" → tab "Maps"</b> → thấy map BĐS của bạn.</div>
             </div>
           </div>
-          <div class="my-maps-actions">
-            <a id="myMapsDriveLink" href="#" target="_blank" class="btn btn-primary btn-sm"
-              style="flex:1;text-align:center;text-decoration:none">📂 Mở file trong Drive</a>
-            <a id="myMapsImportLink" href="https://www.google.com/maps/d/" target="_blank"
-              class="btn btn-ghost btn-sm"
-              style="flex:1;text-align:center;text-decoration:none" title="Mở trang chủ Google My Maps để import">🗺 My Maps</a>
-          </div>
-          <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--border);">
-            <label style="font-size: 0.78rem; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; display: block;">🔗 Link bản đồ của bạn (Tùy chọn)</label>
-            <p style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 8px;">Nếu bạn đã tạo sẵn 1 bản đồ, hãy dán link vào đây để nút <b>"🗺 My Maps"</b> mở thẳng bản đồ đó.</p>
-            <div style="display: flex; gap: 8px;">
-              <input type="text" id="myMapsCustomUrl" class="form-control" style="font-size: 0.75rem; padding: 6px 10px;" placeholder="VD: https://www.google.com/maps/d/edit?mid=...">
-              <button id="btnSaveCustomMapUrl" class="btn btn-secondary btn-sm" style="white-space: nowrap;">Lưu link</button>
-            </div>
+          <div class="my-maps-actions" style="display: flex; gap: 12px;">
+            <a id="myMapsDriveLink" href="#" target="_blank" class="btn btn-primary"
+              style="flex:1;text-align:center;text-decoration:none; padding: 8px;">📂 Mở KML trong Drive</a>
+            <button id="btnBackToDashboard" class="btn btn-secondary" style="flex:1; padding: 8px;">Trở lại</button>
           </div>
         </div>
       </div>

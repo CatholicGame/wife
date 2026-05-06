@@ -110,8 +110,12 @@ const CloudConfig = (() => {
     if (!state.saved[sheetId]) {
       try {
         const raw = localStorage.getItem(oldKey);
-        if (raw) state.saved[sheetId] = JSON.parse(raw);
-        else state.saved[sheetId] = [];
+        if (raw) {
+          state.saved[sheetId] = JSON.parse(raw);
+          queueSave(); // Bắt buộc trigger lưu lên Drive khi có migration
+        } else {
+          state.saved[sheetId] = [];
+        }
       } catch { state.saved[sheetId] = []; }
     }
     return new Set(state.saved[sheetId] || []);
@@ -375,14 +379,16 @@ async function exportToMyMaps() {
     return;
   }
 
-  const rows = State.allRows.filter(r => saved.has(r._row));
+  const rows = State.rows.filter((r) => saved.has(r._row));
+  
   const modal = document.getElementById('myMapsModal');
-  if (!modal) return;
-
-  // Show progress modal
-  modal.classList.remove('hidden');
+  const dashboardEl= document.getElementById('myMapsDashboard');
   const progressEl = document.getElementById('myMapsProgress');
   const resultEl   = document.getElementById('myMapsResult');
+  
+  // Show progress modal
+  modal.classList.remove('hidden');
+  if (dashboardEl) dashboardEl.style.display = 'none';
   if (progressEl) progressEl.style.display = 'block';
   if (resultEl)   resultEl.style.display   = 'none';
 
@@ -405,12 +411,8 @@ async function exportToMyMaps() {
     
     // Reset buttons in case they were hidden by a previous error
     document.getElementById('myMapsDriveLink').style.display  = '';
-    document.getElementById('myMapsImportLink').style.display = '';
 
     const driveUrl        = webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
-    const savedCustomUrl  = CloudConfig.getMyMapsUrl();
-    const myMapsImportUrl = savedCustomUrl || `https://www.google.com/maps/d/`;
-    const directViewUrl   = `https://www.google.com/maps/d/viewer?mid=${fileId}`;
 
     document.getElementById('myMapsResultText').innerHTML = `
       ✅ Đã tạo KML với <b>${pinned}/${total}</b> BĐS.<br>
@@ -418,11 +420,7 @@ async function exportToMyMaps() {
       ${approximate > 0 ? `<br>⚠️ <span style="color:#f5a623">Có ${approximate} BĐS chỉ lấy được vị trí tương đối (quận/huyện).</span>` : ''}
     `;
     document.getElementById('myMapsDriveLink').href  = driveUrl;
-    document.getElementById('myMapsImportLink').href = myMapsImportUrl;
     
-    const customUrlInput = document.getElementById('myMapsCustomUrl');
-    if (customUrlInput) customUrlInput.value = savedCustomUrl || '';
-
     // Save fileId for future reference
     localStorage.setItem('bds_mymaps_fileid', fileId);
 
@@ -431,7 +429,6 @@ async function exportToMyMaps() {
     if (resultEl)   resultEl.style.display   = 'block';
     document.getElementById('myMapsResultText').innerHTML = `❌ Lỗi: ${err.message}`;
     document.getElementById('myMapsDriveLink').style.display  = 'none';
-    document.getElementById('myMapsImportLink').style.display = 'none';
   }
 }
 
@@ -660,9 +657,9 @@ function applyFiltersAndSort() {
       case 'score-asc':  return isBDS ? (parseFloat(colVal(a, 'SCORE')) || 0) - (parseFloat(colVal(b, 'SCORE')) || 0) : a._row - b._row;
       // ── Giá ──
       case 'price-asc':     return isBDS ? (parseFloat(colVal(a, 'PRICE')) || 0) - (parseFloat(colVal(b, 'PRICE')) || 0) : a._row - b._row;
-      case 'price-desc':    return isBDS ? (parseFloat(colVal(b, 'PRICE')) || 0) - (parseFloat(colVal(a, 'PRICE')) || 0) : b._row - a._row;
+      case 'price-desc':    return isBDS ? (parseFloat(colVal(b, 'PRICE')) || 0) - (parseFloat(colVal(a, 'PRICE')) || 0) : a._row - b._row;
       case 'price-m2-asc':  return isBDS ? (parseFloat(colVal(a, 'PRICE_M2')) || 0) - (parseFloat(colVal(b, 'PRICE_M2')) || 0) : a._row - b._row;
-      case 'price-m2-desc': return isBDS ? (parseFloat(colVal(b, 'PRICE_M2')) || 0) - (parseFloat(colVal(a, 'PRICE_M2')) || 0) : b._row - a._row;
+      case 'price-m2-desc': return isBDS ? (parseFloat(colVal(b, 'PRICE_M2')) || 0) - (parseFloat(colVal(a, 'PRICE_M2')) || 0) : a._row - b._row;
       // ── Diện tích ──
       case 'area-desc': return isBDS ? (parseFloat(colVal(b, 'AREA')) || 0) - (parseFloat(colVal(a, 'AREA')) || 0) : b._row - a._row;
       case 'area-asc':  return isBDS ? (parseFloat(colVal(a, 'AREA')) || 0) - (parseFloat(colVal(b, 'AREA')) || 0) : a._row - b._row;
@@ -2019,6 +2016,24 @@ function showUI() {
   // Hiển thị bottom nav cố định khi vào màn hình chính
   document.getElementById('bottomNav')?.classList.remove('hidden');
 
+
+
+  document.getElementById('btnOpenDirectly')?.addEventListener('click', () => {
+    let url = CloudConfig.getMyMapsUrl();
+    if (!url) {
+      showToast('Bạn chưa thiết lập link My Maps! Vui lòng tạo 1 bản đồ trên Google My Maps và dán link vào cấu hình.', 'warning', 5000);
+      url = 'https://www.google.com/maps/d/';
+    }
+    window.open(url, '_blank');
+  });
+
+  document.getElementById('btnSyncKML')?.addEventListener('click', exportToMyMaps);
+
+  document.getElementById('btnBackToDashboard')?.addEventListener('click', () => {
+    document.getElementById('myMapsResult').style.display = 'none';
+    document.getElementById('myMapsDashboard').style.display = 'block';
+  });
+
   const userInfo = Auth.getUserInfo();
   if (userInfo) {
     const avatar = document.getElementById('userAvatar');
@@ -2154,9 +2169,19 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ── Export to My Maps ────────────────────────────────────────────────────────
-  document.getElementById('btnExportMyMaps')?.addEventListener('click', () => {
-    exportToMyMaps();
-  });
+  function openMyMapsDashboard() {
+    document.getElementById('myMapsModal').classList.remove('hidden');
+    document.getElementById('myMapsDashboard').style.display = 'block';
+    document.getElementById('myMapsProgress').style.display = 'none';
+    document.getElementById('myMapsResult').style.display = 'none';
+    
+    const url = CloudConfig.getMyMapsUrl();
+    const input = document.getElementById('myMapsCustomUrl');
+    if (input) input.value = url;
+  }
+
+  document.getElementById('btnExportMyMaps')?.addEventListener('click', openMyMapsDashboard);
+  document.getElementById('btnMyMaps')?.addEventListener('click', openMyMapsDashboard);
   document.getElementById('myMapsModalClose')?.addEventListener('click', () => {
     document.getElementById('myMapsModal')?.classList.add('hidden');
   });
@@ -2167,7 +2192,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnSaveCustomMapUrl')?.addEventListener('click', () => {
     const val = document.getElementById('myMapsCustomUrl')?.value.trim();
     CloudConfig.setMyMapsUrl(val || '');
-    document.getElementById('myMapsImportLink').href = val || 'https://www.google.com/maps/d/';
     if (val) showToast('Đã lưu link bản đồ và đồng bộ!', 'success');
     else showToast('Đã xóa link tùy chỉnh, khôi phục mặc định.', 'info');
   });
@@ -2181,7 +2205,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (input) input.value = mapUrl;
         
         CloudConfig.setMyMapsUrl(mapUrl);
-        document.getElementById('myMapsImportLink').href = mapUrl;
         showToast(`Đã chọn map: ${mapInfo.name} và đồng bộ`, 'success');
       }
     } catch (e) {
