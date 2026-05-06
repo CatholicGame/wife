@@ -62,7 +62,322 @@ const State = {
   viewMode: 'refactor',
   columnFilters: {},   // legacy, kept for compatibility
   smartFilters: {},    // { key: { type, value } } — Smart Filter Panel
+  showSavedOnly: false, // toggle filter "Đã lưu"
 };
+
+// ─── Saved Manager (per-user localStorage) ─────────────────────────────────────
+const SavedManager = {
+  _key() {
+    const info = (typeof Auth !== 'undefined') ? Auth.getUserInfo() : null;
+    return 'bds_saved_' + (info?.email || 'default');
+  },
+  getAll() {
+    try {
+      const raw = localStorage.getItem(this._key());
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch { return new Set(); }
+  },
+  toggle(rowId) {
+    const saved = this.getAll();
+    if (saved.has(rowId)) saved.delete(rowId);
+    else saved.add(rowId);
+    localStorage.setItem(this._key(), JSON.stringify([...saved]));
+    return saved.has(rowId);
+  },
+  has(rowId) { return this.getAll().has(rowId); },
+  count()    { return this.getAll().size; },
+};
+
+// ─── Geocode address via Nominatim (OpenStreetMap, free, no key needed) ────────
+async function geocodeAddress(address) {
+  try {
+    const q = encodeURIComponent(address + ', Việt Nam');
+    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&countrycodes=vn`;
+    const r = await fetch(url, { headers: { 'Accept-Language': 'vi', 'User-Agent': 'BDS-Survey-App/1.0' } });
+    if (!r.ok) return null;
+    const data = await r.json();
+    if (data.length > 0) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+  } catch {}
+  return null;
+}
+
+// Try to extract lat/lng from a Google Maps URL
+function extractCoordsFromMapsUrl(url) {
+  if (!url) return null;
+  // Format: /@lat,lng,zoom  or  ?q=lat,lng
+  const atMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (atMatch) return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
+  const qMatch = url.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (qMatch) return { lat: parseFloat(qMatch[1]), lng: parseFloat(qMatch[2]) };
+  // maps.google.com/?ll=lat,lng
+  const llMatch = url.match(/[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (llMatch) return { lat: parseFloat(llMatch[1]), lng: parseFloat(llMatch[2]) };
+  // maps.google.com/...&center=lat,lng
+  const centerMatch = url.match(/[?&]center=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (centerMatch) return { lat: parseFloat(centerMatch[1]), lng: parseFloat(centerMatch[2]) };
+  return null;
+}
+
+// ─── Generate KML from rows ────────────────────────────────────────────────────
+async function generateKML(rows, onProgress) {
+  const placemarks = [];
+  let geocoded = 0;
+  let approximate = 0;
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const address  = colVal(row, 'ADDRESS') || `Hàng ${row._row}`;
+    const district = colVal(row, 'DISTRICT');
+    const price    = formatPrice(colVal(row, 'PRICE'));
+    const area     = colVal(row, 'AREA');
+    const score    = colVal(row, 'SCORE');
+    const status   = colVal(row, 'STATUS');
+    const mapsLink = colVal(row, 'MAPS_LINK');
+    const notes    = colVal(row, 'NOTES');
+
+    if (onProgress) onProgress(i + 1, rows.length, address);
+
+    // Try to get coordinates
+    let lat = parseFloat(colVal(row, 'LAT'));
+    let lng = parseFloat(colVal(row, 'LNG'));
+    let isApprox = false;
+
+    if (isNaN(lat) || isNaN(lng)) {
+      // Try to extract from Maps URL
+      const fromUrl = extractCoordsFromMapsUrl(mapsLink);
+      if (fromUrl) { lat = fromUrl.lat; lng = fromUrl.lng; }
+    }
+
+    if (isNaN(lat) || isNaN(lng)) {
+      // Geocode via Nominatim with fallback (rate limit: 1/sec)
+      let geo = null;
+      
+      const cleanAddress = address.replace(/^(Ngách|Ngõ|Hẻm|Số nhà|Số)\s*[\w\/\-\.]+\s*(Phố|Đường)?\s*/i, '');
+      const queries = [];
+      queries.push([address, district].filter(Boolean).join(', '));
+      if (cleanAddress && cleanAddress !== address) {
+        queries.push([cleanAddress, district].filter(Boolean).join(', '));
+      }
+
+      for (const q of queries) {
+         geo = await geocodeAddress(q);
+         await new Promise(r => setTimeout(r, 1100)); // Nominatim rate limit
+         if (geo) break;
+      }
+
+      if (!geo && district) {
+         // Fallback to district
+         geo = await geocodeAddress(district);
+         await new Promise(r => setTimeout(r, 1100));
+         if (geo) {
+           isApprox = true;
+           approximate++;
+         }
+      }
+
+      if (geo) {
+        lat = geo.lat;
+        lng = geo.lng;
+        if (isApprox) {
+          // Add small random offset (~100-300m) so pins don't stack perfectly
+          lat += (Math.random() - 0.5) * 0.005;
+          lng += (Math.random() - 0.5) * 0.005;
+        }
+        geocoded++;
+      }
+    }
+
+    const descLines = [
+      isApprox  ? `⚠️ Vị trí tương đối (theo khu vực)` : '',
+      district  ? `📍 ${district}` : '',
+      price !== '—' ? `💰 Giá: ${price}` : '',
+      area      ? `📐 DT: ${area} m²` : '',
+      score     ? `⭐ Điểm: ${score}` : '',
+      status    ? `📌 Tình trạng: ${status}` : '',
+      notes     ? `📝 ${notes}` : '',
+      mapsLink  ? `<a href="${mapsLink}">🗺️ Mở Google Maps</a>` : '',
+    ].filter(Boolean).join('\n');
+
+    if (!isNaN(lat) && !isNaN(lng)) {
+      placemarks.push(`
+  <Placemark>
+    <name>${escapeXml(address)}</name>
+    <styleUrl>${isApprox ? '#bds-pin-approx' : '#bds-pin'}</styleUrl>
+    <description><![CDATA[${descLines}]]></description>
+    <Point><coordinates>${lng},${lat},0</coordinates></Point>
+  </Placemark>`);
+    }
+  }
+
+  const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>BĐS Đã Lưu – Khảo Sát</name>
+    <description>Danh sách bất động sản đã lưu từ app BĐS Khảo Sát</description>
+    <Style id="bds-pin">
+      <IconStyle>
+        <color>ff00d4aa</color>
+        <Icon><href>http://maps.google.com/mapfiles/kml/paddle/grn-blank.png</href></Icon>
+      </IconStyle>
+    </Style>
+    <Style id="bds-pin-approx">
+      <IconStyle>
+        <color>ff00aaff</color>
+        <Icon><href>http://maps.google.com/mapfiles/kml/paddle/ylw-blank.png</href></Icon>
+      </IconStyle>
+    </Style>
+    ${placemarks.join('')}
+  </Document>
+</kml>`;
+
+  return { kml, geocoded, total: rows.length, pinned: placemarks.length, approximate };
+}
+
+function escapeXml(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+// ─── Upload KML to Google Drive ────────────────────────────────────────────────
+async function uploadKMLToDrive(kmlContent) {
+  const token = Auth.getToken();
+  if (!token) throw new Error('Chưa đăng nhập');
+
+  const fileName = 'BDS_Survey_Saved.kml';
+  const mimeType = 'application/vnd.google-earth.kml+xml';
+
+  // Search for existing file
+  const searchRes = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=name%3D%22${encodeURIComponent(fileName)}%22%20and%20trashed%3Dfalse&fields=files(id,name,webViewLink)`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  const searchData = await searchRes.json();
+  const existing = searchData.files?.[0];
+
+  let fileId, webViewLink;
+
+  if (existing) {
+    // Delete existing file to force My Maps to fetch fresh content
+    await fetch(`https://www.googleapis.com/drive/v3/files/${existing.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    }).catch(() => {});
+  }
+
+  // Create new file (multipart)
+  const boundary = 'bds_kml_boundary';
+  const body = [
+    `--${boundary}`,
+    'Content-Type: application/json; charset=UTF-8',
+    '',
+    JSON.stringify({ name: fileName, mimeType }),
+    `--${boundary}`,
+    `Content-Type: ${mimeType}`,
+    '',
+    kmlContent,
+    `--${boundary}--`,
+  ].join('\r\n');
+
+  const createRes = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': `multipart/related; boundary="${boundary}"`,
+      },
+      body,
+    }
+  );
+  if (!createRes.ok) throw new Error('Lỗi tạo file KML mới');
+  const created = await createRes.json();
+  fileId = created.id;
+  webViewLink = created.webViewLink;
+
+  // Make file readable (shareable link — optional, for opening in My Maps)
+  await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}/permissions`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'reader', type: 'anyone' }),
+    }
+  ).catch(() => {}); // non-fatal
+
+  return { fileId, webViewLink };
+}
+
+// ─── Export Saved to Google My Maps ───────────────────────────────────────────
+async function exportToMyMaps() {
+  const saved = SavedManager.getAll();
+  if (saved.size === 0) {
+    showToast('Chưa có BĐS nào được lưu. Bấm ♡ trên mỗi dòng để lưu.', 'warning');
+    return;
+  }
+
+  const rows = State.allRows.filter(r => saved.has(r._row));
+  const modal = document.getElementById('myMapsModal');
+  if (!modal) return;
+
+  // Show progress modal
+  modal.classList.remove('hidden');
+  const progressEl = document.getElementById('myMapsProgress');
+  const resultEl   = document.getElementById('myMapsResult');
+  if (progressEl) progressEl.style.display = 'block';
+  if (resultEl)   resultEl.style.display   = 'none';
+
+  const progressText = document.getElementById('myMapsProgressText');
+
+  try {
+    // Step 1: Generate KML
+    if (progressText) progressText.textContent = `Đang tạo KML cho ${rows.length} BĐS…`;
+    const { kml, geocoded, total, pinned, approximate } = await generateKML(rows, (cur, tot, addr) => {
+      if (progressText) progressText.textContent = `(${cur}/${tot}) Xử lý: ${addr.substring(0, 40)}…`;
+    });
+
+    // Step 2: Upload to Drive
+    if (progressText) progressText.textContent = 'Đang upload lên Google Drive…';
+    const { fileId, webViewLink } = await uploadKMLToDrive(kml);
+
+    // Step 3: Show result
+    if (progressEl) progressEl.style.display = 'none';
+    if (resultEl)   resultEl.style.display   = 'block';
+    
+    // Reset buttons in case they were hidden by a previous error
+    document.getElementById('myMapsDriveLink').style.display  = '';
+    document.getElementById('myMapsImportLink').style.display = '';
+
+    const driveUrl        = webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
+    const savedCustomUrl  = localStorage.getItem('bds_mymaps_custom_url');
+    const myMapsImportUrl = savedCustomUrl || `https://www.google.com/maps/d/`;
+    const directViewUrl   = `https://www.google.com/maps/d/viewer?mid=${fileId}`;
+
+    document.getElementById('myMapsResultText').innerHTML = `
+      ✅ Đã tạo KML với <b>${pinned}/${total}</b> BĐS.<br>
+      ${geocoded > 0 ? `📍 Tự động lấy tọa độ: ${geocoded} địa chỉ.` : ''}
+      ${approximate > 0 ? `<br>⚠️ <span style="color:#f5a623">Có ${approximate} BĐS chỉ lấy được vị trí tương đối (quận/huyện).</span>` : ''}
+    `;
+    document.getElementById('myMapsDriveLink').href  = driveUrl;
+    document.getElementById('myMapsImportLink').href = myMapsImportUrl;
+    
+    const customUrlInput = document.getElementById('myMapsCustomUrl');
+    if (customUrlInput) customUrlInput.value = savedCustomUrl || '';
+
+    // Save fileId for future reference
+    localStorage.setItem('bds_mymaps_fileid', fileId);
+
+  } catch (err) {
+    if (progressEl) progressEl.style.display = 'none';
+    if (resultEl)   resultEl.style.display   = 'block';
+    document.getElementById('myMapsResultText').innerHTML = `❌ Lỗi: ${err.message}`;
+    document.getElementById('myMapsDriveLink').style.display  = 'none';
+    document.getElementById('myMapsImportLink').style.display = 'none';
+  }
+}
 
 // ─── Column Mapping ───────────────────────────────────────────────────────────
 function buildColMap(headers) {
@@ -271,6 +586,12 @@ function applyFiltersAndSort() {
       }
       return true;
     });
+  }
+
+  // ── Saved-only filter ────────────────────────────────────
+  if (State.showSavedOnly) {
+    const savedSet = SavedManager.getAll();
+    rows = rows.filter(r => savedSet.has(r._row));
   }
 
   // Sort
@@ -777,7 +1098,8 @@ function renderV2Table() {
 
   // Build header — with Google Sheets-style filter icon
   const hasAnyColFilter = Object.keys(State.columnFilters).length > 0;
-  const thCells = cols.map((col) => {
+  const saveTh = '<th class="col-save" style="width:32px;text-align:center;background:var(--bg-surface)" title="Lưu vào My Maps">♥</th>';
+  const thCells = saveTh + cols.map((col) => {
     const bg = V2_GROUP_BG[col.group] || V2_GROUP_BG.default;
     const deleteBtn = col.system
       ? ''
@@ -837,11 +1159,14 @@ function renderV2Table() {
       return '<td>' + (val || '') + '</td>';
     }).join('');
     
-    return '<tr data-v2row="' + row._row + '" style="cursor:pointer">' + cells + '</tr>';
+    const isSaved = SavedManager.has(row._row);
+    const saveCell = '<td class="col-save" style="text-align:center;padding:0 6px"><button class="v2-save-btn' + (isSaved ? ' saved' : '') + '" data-saverow="' + row._row + '" title="' + (isSaved ? 'Bỏ lưu' : 'Lưu vào My Maps') + '">' + (isSaved ? '♥' : '♡') + '</button></td>';
+    return '<tr data-v2row="' + row._row + '" style="cursor:pointer">' + saveCell + cells + '</tr>';
   }).join('');
 
   // Update filter button badge count
   _updateFilterBtnBadge();
+  _updateSavedBtnBadge();
 
   container.innerHTML =
     '<table class="data-table">' +
@@ -912,8 +1237,26 @@ function renderV2Table() {
     }
   }
 
+  // ── Bookmark / Save buttons ──
+  container.querySelectorAll('.v2-save-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const rowId = parseInt(btn.dataset.saverow);
+      const isSaved = SavedManager.toggle(rowId);
+      btn.classList.toggle('saved', isSaved);
+      btn.textContent = isSaved ? '♥' : '♡';
+      btn.title = isSaved ? 'Bỏ lưu' : 'Lưu vào My Maps';
+      _updateSavedBtnBadge();
+      // Nếu đang filter "Đã lưu" mà vừa bỏ lưu → re-render để ẩn dòng
+      if (State.showSavedOnly && !isSaved) {
+        applyFiltersAndSort();
+        renderList();
+      }
+    });
+  });
+
   container.querySelector('table')?.addEventListener('click', (e) => {
-    if (e.target.closest('.v2-col-delete') || e.target.closest('a')) return;
+    if (e.target.closest('.v2-col-delete') || e.target.closest('a') || e.target.closest('.v2-save-btn')) return;
     const tr = e.target.closest('tr[data-v2row]');
     if (!tr) { _setSelectedRow(null); return; }
     const rowNum = parseInt(tr.dataset.v2row);
@@ -1051,6 +1394,16 @@ function _updateFilterBtnBadge() {
   } else if (pill) {
     pill.remove();
   }
+}
+
+// ── Saved Button Badge ─────────────────────────────────────────────────────────
+function _updateSavedBtnBadge() {
+  const btn = document.getElementById('btnSavedFilter');
+  if (!btn) return;
+  const count = SavedManager.count();
+  btn.classList.toggle('saved-filter-active', State.showSavedOnly);
+  const countSpan = btn.querySelector('.saved-count');
+  if (countSpan) countSpan.textContent = count > 0 ? ` ${count}` : '';
 }
 
 // ── Smart Filter Panel ─────────────────────────────────────────────────────────
@@ -1486,7 +1839,7 @@ function openColMapper() {
 
   // Nếu chưa có headers → sheet trống
   if (headers.length === 0) {
-    showToast('Sheet hiện trạng đăng trống hoặc chưa có cột dữ liệu (hàng 1). Vui lòng thêm cột vào Sheet!', 'error');
+    showToast('Sheet hiện trạng đăng trống hoặc chưa có cột dữ liệu (hàng 1). V vui lòng thêm cột vào Sheet!', 'error');
     return;
   }
 
@@ -1730,6 +2083,55 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnAdv?.addEventListener('click', () => {
     openSmartFilterPanel();
+  });
+
+  // ── Saved Filter Button ──────────────────────────────────────────────────────
+  document.getElementById('btnSavedFilter')?.addEventListener('click', () => {
+    State.showSavedOnly = !State.showSavedOnly;
+    _updateSavedBtnBadge();
+    applyFiltersAndSort();
+    renderList();
+  });
+
+  // ── Export to My Maps ────────────────────────────────────────────────────────
+  document.getElementById('btnExportMyMaps')?.addEventListener('click', () => {
+    exportToMyMaps();
+  });
+  document.getElementById('myMapsModalClose')?.addEventListener('click', () => {
+    document.getElementById('myMapsModal')?.classList.add('hidden');
+  });
+  document.getElementById('myMapsModal')?.addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+  });
+  
+  document.getElementById('btnSaveCustomMapUrl')?.addEventListener('click', () => {
+    const val = document.getElementById('myMapsCustomUrl')?.value.trim();
+    if (val) {
+      localStorage.setItem('bds_mymaps_custom_url', val);
+      document.getElementById('myMapsImportLink').href = val;
+      showToast('Đã lưu link bản đồ!', 'success');
+    } else {
+      localStorage.removeItem('bds_mymaps_custom_url');
+      document.getElementById('myMapsImportLink').href = 'https://www.google.com/maps/d/';
+      showToast('Đã xóa link tùy chỉnh, khôi phục mặc định.', 'info');
+    }
+  });
+
+  document.getElementById('btnPickMyMap')?.addEventListener('click', async () => {
+    try {
+      const mapInfo = await Auth.openMyMapsPicker();
+      if (mapInfo) {
+        const mapUrl = `https://www.google.com/maps/d/edit?mid=${mapInfo.mapId}`;
+        const input = document.getElementById('myMapsCustomUrl');
+        if (input) input.value = mapUrl;
+        
+        localStorage.setItem('bds_mymaps_custom_url', mapUrl);
+        document.getElementById('myMapsImportLink').href = mapUrl;
+        showToast(`Đã chọn map: ${mapInfo.name}`, 'success');
+      }
+    } catch (e) {
+      showToast('Lỗi: ' + e.message, 'error');
+    }
   });
 
   document.getElementById('btnCloseFilter')?.addEventListener('click', () => {

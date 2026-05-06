@@ -248,7 +248,32 @@ const Auth = (() => {
     });
   }
 
-  return { init, isSignedIn, getToken, signIn, signOut, getUserInfo, openSheetPicker, openFolderPicker };
+  async function openMyMapsPicker() {
+    const token = getToken();
+    if (!token) throw new Error('Chưa đăng nhập');
+    return new Promise((resolve) => {
+      const picker = new google.picker.PickerBuilder()
+        .addView(
+          new google.picker.DocsView()
+            .setMimeTypes('application/vnd.google-apps.map')
+            .setIncludeFolders(false)
+        )
+        .setOAuthToken(token)
+        .setDeveloperKey(APP_CONFIG.PICKER_API_KEY)
+        .setTitle('Chọn bản đồ Google My Maps của bạn')
+        .setCallback((data) => {
+          if (data.action === google.picker.Action.PICKED) {
+            resolve({ mapId: data.docs[0].id, name: data.docs[0].name });
+          } else if (data.action === google.picker.Action.CANCEL) {
+            resolve(null);
+          }
+        })
+        .build();
+      picker.setVisible(true);
+    });
+  }
+
+  return { init, isSignedIn, getToken, signIn, signOut, getUserInfo, openSheetPicker, openFolderPicker, openMyMapsPicker };
 })();
 
 window.Auth = Auth;

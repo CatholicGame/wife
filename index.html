@@ -1015,6 +1015,166 @@
       color: var(--text-muted);
       padding: 0 6px;
     }
+
+    /* ── Save / Bookmark Button ── */
+    .v2-save-btn {
+      background: none;
+      border: none;
+      font-size: 1.05rem;
+      cursor: pointer;
+      color: var(--text-muted);
+      padding: 2px 4px;
+      border-radius: 6px;
+      line-height: 1;
+      transition: color 0.18s, transform 0.15s;
+      display: block;
+    }
+    .v2-save-btn:hover {
+      color: #ff4d8d;
+      transform: scale(1.25);
+    }
+    .v2-save-btn.saved {
+      color: #ff4d8d;
+      animation: heartPop 0.25s ease;
+    }
+    @keyframes heartPop {
+      0%   { transform: scale(1); }
+      50%  { transform: scale(1.4); }
+      100% { transform: scale(1); }
+    }
+    .col-save { width: 36px !important; min-width: 36px !important; }
+
+    /* ── Saved Filter Button ── */
+    #btnSavedFilter {
+      position: relative;
+      transition: all 0.2s;
+    }
+    #btnSavedFilter.saved-filter-active {
+      background: rgba(255,77,141,0.15);
+      border-color: rgba(255,77,141,0.5);
+      color: #ff4d8d;
+      font-weight: 700;
+    }
+    .saved-count {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #ff4d8d;
+    }
+
+    /* ── My Maps Export Modal ── */
+    #myMapsModal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(6px);
+      z-index: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    #myMapsModal.hidden { display: none; }
+    .my-maps-sheet {
+      background: var(--bg-card);
+      border: 1px solid rgba(0,212,170,0.3);
+      border-radius: 20px;
+      padding: 24px;
+      max-width: 420px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      animation: panelFadeIn 0.2s ease;
+    }
+    .my-maps-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .my-maps-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .my-maps-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      cursor: pointer;
+    }
+    .my-maps-progress {
+      text-align: center;
+      padding: 24px 0;
+    }
+    .my-maps-spinner {
+      font-size: 2rem;
+      animation: spin 1s linear infinite;
+      display: block;
+      margin-bottom: 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .my-maps-progress-text {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      max-width: 300px;
+      margin: 0 auto;
+      line-height: 1.5;
+    }
+    .my-maps-result {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .my-maps-result-text {
+      font-size: 0.85rem;
+      color: var(--text-primary);
+      line-height: 1.6;
+      background: var(--bg-surface);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+    .my-maps-steps {
+      background: rgba(0,212,170,0.07);
+      border: 1px solid rgba(0,212,170,0.2);
+      border-radius: 12px;
+      padding: 14px 16px;
+    }
+    .my-maps-steps-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+    .my-maps-step {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      margin-bottom: 8px;
+      font-size: 0.78rem;
+      color: var(--text-primary);
+      line-height: 1.4;
+    }
+    .my-maps-step-num {
+      background: var(--accent);
+      color: #000;
+      font-weight: 700;
+      font-size: 0.68rem;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .my-maps-actions {
+      display: flex;
+      gap: 10px;
+    }
   </style>
 </head>
 
@@ -1114,6 +1274,12 @@
           style="font-size:0.75rem;padding:4px 10px;white-space:nowrap;transition:all 0.2s">🗑️ Xóa dòng</button>
         <button class="btn btn-ghost btn-sm" id="btnColSettings"
           style="font-size:0.75rem;padding:4px 10px;white-space:nowrap">⚙️ Cột</button>
+        <button class="btn btn-ghost btn-sm" id="btnSavedFilter"
+          style="font-size:0.75rem;padding:4px 10px;white-space:nowrap;border-color:rgba(255,77,141,0.3)"
+          title="Lọc BĐS đã lưu">♥ Đã lưu<span class="saved-count"></span></button>
+        <button class="btn btn-primary btn-sm" id="btnExportMyMaps"
+          style="font-size:0.75rem;padding:4px 10px;white-space:nowrap;background:linear-gradient(135deg,#4285f4,#34a853);border:none"
+          title="Xuất danh sách đã lưu lên Google My Maps">🗺 My Maps</button>
       </div>
     </div>
 
@@ -1179,6 +1345,55 @@ Xấu"></textarea>
         <div class="confirm-dialog-actions">
           <button class="btn btn-ghost" id="cancelDeleteCol">Hủy</button>
           <button class="btn btn-danger" id="execDeleteCol">Xóa cột</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── My Maps Export Modal ── -->
+    <div id="myMapsModal" class="hidden">
+      <div class="my-maps-sheet">
+        <div class="my-maps-header">
+          <div class="my-maps-title">🗺️ Xuất lên Google My Maps</div>
+          <button class="my-maps-close" id="myMapsModalClose">✕</button>
+        </div>
+        <!-- Progress -->
+        <div id="myMapsProgress" class="my-maps-progress" style="display:none">
+          <span class="my-maps-spinner">⏳</span>
+          <p class="my-maps-progress-text" id="myMapsProgressText">Đang xử lý…</p>
+        </div>
+        <!-- Result -->
+        <div id="myMapsResult" class="my-maps-result" style="display:none">
+          <div class="my-maps-result-text" id="myMapsResultText"></div>
+          <div class="my-maps-steps">
+            <div class="my-maps-steps-title">📋 Hướng dẫn xem trong Google Maps</div>
+            <div class="my-maps-step">
+              <div class="my-maps-step-num">1</div>
+              <div>Mở file KML trong Drive bên dưới → nhấn <b>"Open with → Google My Maps"</b></div>
+            </div>
+            <div class="my-maps-step">
+              <div class="my-maps-step-num">2</div>
+              <div>My Maps sẽ được tạo tự động với tất cả pin. Chờ ~30 giây.</div>
+            </div>
+            <div class="my-maps-step">
+              <div class="my-maps-step-num">3</div>
+              <div>Mở <b>Google Maps app</b> → ☰ Menu → <b>"Your places" → tab "Maps"</b> → thấy map BĐS của bạn.</div>
+            </div>
+          </div>
+          <div class="my-maps-actions">
+            <a id="myMapsDriveLink" href="#" target="_blank" class="btn btn-primary btn-sm"
+              style="flex:1;text-align:center;text-decoration:none">📂 Mở file trong Drive</a>
+            <a id="myMapsImportLink" href="https://www.google.com/maps/d/" target="_blank"
+              class="btn btn-ghost btn-sm"
+              style="flex:1;text-align:center;text-decoration:none" title="Mở trang chủ Google My Maps để import">🗺 My Maps</a>
+          </div>
+          <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--border);">
+            <label style="font-size: 0.78rem; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; display: block;">🔗 Link bản đồ của bạn (Tùy chọn)</label>
+            <p style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 8px;">Nếu bạn đã tạo sẵn 1 bản đồ, hãy dán link vào đây để nút <b>"🗺 My Maps"</b> mở thẳng bản đồ đó.</p>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="myMapsCustomUrl" class="form-control" style="font-size: 0.75rem; padding: 6px 10px;" placeholder="VD: https://www.google.com/maps/d/edit?mid=...">
+              <button id="btnSaveCustomMapUrl" class="btn btn-secondary btn-sm" style="white-space: nowrap;">Lưu link</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
