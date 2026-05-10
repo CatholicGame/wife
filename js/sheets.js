@@ -115,7 +115,8 @@ const SheetsAPI = (() => {
    */
   async function appendRow(spreadsheetId, sheetName, values) {
     const hdrs = await authHeaders();
-    const range = encodeURIComponent(`${sheetName}`);
+    const quotedSheet = `'${sheetName.replace(/'/g, "''")}'`;
+    const range = encodeURIComponent(`${quotedSheet}!A:A`);
     const url = `${BASE}/${spreadsheetId}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
     const body = { values: [values] };
     const r = await fetch(url, { method: 'POST', headers: hdrs, body: JSON.stringify(body) });
