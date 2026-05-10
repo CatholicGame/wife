@@ -899,16 +899,11 @@ function openColSettingsPanel() {
   `;
   document.body.appendChild(panel);
 
-  // Position below the ⚙️ Cột button
-  const triggerBtn = document.getElementById('btnColSettings');
-  if (triggerBtn) {
-    const rect = triggerBtn.getBoundingClientRect();
-    panel.style.top   = (rect.bottom + 6) + 'px';
-    panel.style.right = (window.innerWidth - rect.right) + 'px';
-    // Clamp so it doesn't go off-screen bottom
-    const maxH = window.innerHeight - rect.bottom - 16;
-    panel.style.maxHeight = Math.min(parseInt(panel.style.maxHeight || 9999), maxH) + 'px';
-  }
+  // Căn giữa màn hình
+  panel.style.top       = '50%';
+  panel.style.left      = '50%';
+  panel.style.right     = 'auto';
+  panel.style.transform = 'translate(-50%, -50%)';
 
   const body = panel.querySelector('#colSettingsBody');
   let dragSrc = null;
@@ -1084,29 +1079,35 @@ function getV2Columns() {
 
   try {
     // Version flag is per-workspace
-    const verKey = wsKey + '_v6';
+    const verKey = wsKey + '_v7';
     const ver = localStorage.getItem(verKey);
     if (!ver) {
       localStorage.setItem(verKey, '1');
       localStorage.removeItem(wsKey); // wipe old layout → apply new defaults
+      // Also remove old version flags to avoid confusion
+      localStorage.removeItem(wsKey + '_v6');
       return isBDS ? [...V2_DEFAULT_COLS] : buildGenericCols();
     }
     const saved = localStorage.getItem(wsKey);
     if (saved) {
       const parsed = JSON.parse(saved);
-      // Auto-heal: loại bỏ duplicate theo id
+      // Auto-heal: loại bỏ duplicate theo id VÀ theo knownKey
       const seenIds = new Set();
+      const seenKnownKeys = new Set();
       const deduped = parsed.filter(c => {
         if (!c || !c.id || seenIds.has(c.id)) return false;
+        // Nếu 2 cột cùng knownKey → chỉ giữ 1 (cái đầu tiên)
+        if (c.knownKey && seenKnownKeys.has(c.knownKey)) return false;
         seenIds.add(c.id);
+        if (c.knownKey) seenKnownKeys.add(c.knownKey);
         return true;
       });
       if (deduped.length !== parsed.length) {
+        // Có duplicate → auto-save bản đã clean
         localStorage.setItem(wsKey, JSON.stringify(deduped));
       }
       
-      // Nếu là sheet mới tinh vừa import nhưng lại load ra rỗng (vì State.headers chưa có khi getV2Columns chạy lần đầu?)
-      // Nếu deduped rỗng mà là generic, thử build lại
+      // Nếu là sheet mới tinh vừa import nhưng lại load ra rỗng
       if (deduped.length === 0 && !isBDS) return buildGenericCols();
       
       return deduped;
